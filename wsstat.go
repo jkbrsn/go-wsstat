@@ -35,15 +35,15 @@ var (
 
 // CertificateDetails holds details regarding a certificate.
 type CertificateDetails struct {
-	CommonName string
-	Issuer     string
-	NotBefore  time.Time
-	NotAfter   time.Time
+	CommonName         string
+	Issuer             string
+	NotBefore          time.Time
+	NotAfter           time.Time
 	PublicKeyAlgorithm x509.PublicKeyAlgorithm
 	SignatureAlgorithm x509.SignatureAlgorithm
-	DNSNames       []string
-	IPAddresses    []net.IP
-	URIs           []*url.URL
+	DNSNames           []string
+	IPAddresses        []net.IP
+	URIs               []*url.URL
 }
 
 // Result holds durations of each phase of a WebSocket connection, cumulative durations over
@@ -85,7 +85,7 @@ type WSStat struct {
 func (ws *WSStat) readLoop() {
 	defer ws.conn.Close()
 	for {
-        // Although the message content is not used directly here,
+		// Although the message content is not used directly here,
 		// calling NextReader is necessary to trigger the pong handler.
 		if _, _, err := ws.conn.NextReader(); err != nil {
 			break
@@ -140,16 +140,16 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	// Capture request and response headers
 	// documentedDefaultHeaders lists the known headers that Gorilla WebSocket sets by default.
 	var documentedDefaultHeaders = map[string][]string{
-		"Upgrade": {"websocket"},        // Constant value
-		"Connection": {"Upgrade"},       // Constant value
-		"Sec-WebSocket-Key": {"<hidden>"},       // A nonce value; dynamically generated for each request
-		"Sec-WebSocket-Version": {"13"}, // Constant value
+		"Upgrade":               {"websocket"}, // Constant value
+		"Connection":            {"Upgrade"},   // Constant value
+		"Sec-WebSocket-Key":     {"<hidden>"},  // A nonce value; dynamically generated for each request
+		"Sec-WebSocket-Version": {"13"},        // Constant value
 		// "Sec-WebSocket-Protocol",     // Also set by gorilla/websocket, but only if subprotocols are specified
 	}
 	// Merge custom headers
-    for name, values := range documentedDefaultHeaders {
+	for name, values := range documentedDefaultHeaders {
 		headers[name] = values
-    }
+	}
 	ws.Result.RequestHeaders = headers
 	ws.Result.ResponseHeaders = resp.Header
 
@@ -171,7 +171,7 @@ func (ws *WSStat) ReadMessage(writeStart time.Time) (int, []byte, error) {
 	return msgType, p, nil
 }
 
-// WriteMessage sends a message through the WebSocket connection and 
+// WriteMessage sends a message through the WebSocket connection and
 // starts a timer to measure the round-trip time.
 // Wraps the gorilla/websocket WriteMessage method.
 func (ws *WSStat) WriteMessage(messageType int, data []byte) (time.Time, error) {
@@ -239,7 +239,7 @@ func (ws *WSStat) SendMessageJSON(v interface{}) (interface{}, error) {
 // Wraps the gorilla/websocket SetPongHandler and WriteMessage methods.
 // Sets result times: MessageRoundTrip, FirstMessageResponse
 func (ws *WSStat) SendPing() error {
-	pongReceived := make(chan bool) // Unbuffered channel
+	pongReceived := make(chan bool)        // Unbuffered channel
 	timeout := time.After(5 * time.Second) // Timeout for the pong response
 
 	ws.conn.SetPongHandler(func(appData string) error {
@@ -275,35 +275,35 @@ func (r *Result) durations() map[string]time.Duration {
 		"MessageRoundTrip": r.MessageRoundTrip,
 		"ConnectionClose":  r.ConnectionClose,
 
-		"DNSLookupDone":		r.DNSLookupDone,
-		"TCPConnected":			r.TCPConnected,
-		"TLSHandshakeDone":		r.TLSHandshakeDone,
-		"WSHandshakeDone":		r.WSHandshakeDone,
-		"FirstMessageResponse":	r.FirstMessageResponse,
-		"TotalTime":			r.TotalTime,
+		"DNSLookupDone":        r.DNSLookupDone,
+		"TCPConnected":         r.TCPConnected,
+		"TLSHandshakeDone":     r.TLSHandshakeDone,
+		"WSHandshakeDone":      r.WSHandshakeDone,
+		"FirstMessageResponse": r.FirstMessageResponse,
+		"TotalTime":            r.TotalTime,
 	}
 }
 
 // CertificateDetails returns a slice of CertificateDetails for each certificate in the TLS connection.
 func (r *Result) CertificateDetails() []CertificateDetails {
-    if r.TLSState == nil {
-        return nil
-    }
-    var details []CertificateDetails
-    for _, cert := range r.TLSState.PeerCertificates {
-        details = append(details, CertificateDetails{
-			CommonName:  cert.Subject.CommonName,
-			Issuer:      cert.Issuer.CommonName,
-			NotBefore:   cert.NotBefore,
-			NotAfter:    cert.NotAfter,
+	if r.TLSState == nil {
+		return nil
+	}
+	var details []CertificateDetails
+	for _, cert := range r.TLSState.PeerCertificates {
+		details = append(details, CertificateDetails{
+			CommonName:         cert.Subject.CommonName,
+			Issuer:             cert.Issuer.CommonName,
+			NotBefore:          cert.NotBefore,
+			NotAfter:           cert.NotAfter,
 			PublicKeyAlgorithm: cert.PublicKeyAlgorithm,
 			SignatureAlgorithm: cert.SignatureAlgorithm,
-			DNSNames:    cert.DNSNames,
-			IPAddresses: cert.IPAddresses,
-			URIs:        cert.URIs,
-        })
-    }
-    return details
+			DNSNames:           cert.DNSNames,
+			IPAddresses:        cert.IPAddresses,
+			URIs:               cert.URIs,
+		})
+	}
+	return details
 }
 
 // Format formats the time.Duration members of Result.
@@ -486,14 +486,14 @@ func Port(u url.URL) string {
 		// No port specified in the URL, return the default port based on the scheme
 		switch u.Scheme {
 		case "ws":
-		    return "80"
+			return "80"
 		case "wss":
-		    return "443"
+			return "443"
 		default:
-		    return ""
+			return ""
 		}
 	}
-    return port
+	return port
 }
 
 // newDialer initializes and returns a websocket.Dialer with customized dial functions to measure the connection phases.
@@ -575,20 +575,20 @@ func newDialer(result *Result) *websocket.Dialer {
 
 // NewWSStat creates and returns a new WSStat instance.
 func NewWSStat() *WSStat {
-    result := &Result{}
+	result := &Result{}
 	dialer := newDialer(result)
 
-    ws := &WSStat{
-        dialer: dialer,
+	ws := &WSStat{
+		dialer: dialer,
 		Result: result,
-    }
-    return ws
+	}
+	return ws
 }
 
 // SetCustomTLSConfig allows users to provide their own TLS configuration.
 // Pass nil to use default settings.
 func SetCustomTLSConfig(config *tls.Config) {
-    customTLSConfig = config
+	customTLSConfig = config
 }
 
 // SetDialTimeout sets the dial timeout for WSStat.

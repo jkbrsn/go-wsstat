@@ -16,10 +16,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var (	
-	serverAddr = "localhost:8080"
+var (
+	serverAddr       = "localhost:8080"
 	echoServerAddrWs *url.URL
-		// TODO: support wss in tests
+	// TODO: support wss in tests
 )
 
 func init() {
@@ -248,13 +248,12 @@ func TestLoggerFunctionality(t *testing.T) {
 	logger = zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().Timestamp().Logger()
 }
 
-
 // Helpers
 
 // getFunctionName returns the name of the calling function.
 func getFunctionName() string {
-    pc, _, _, _ := runtime.Caller(1)
-    return strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "main.")
+	pc, _, _, _ := runtime.Caller(1)
+	return strings.TrimPrefix(runtime.FuncForPC(pc).Name(), "main.")
 }
 
 // startEchoServer starts a WebSocket server that echoes back any received messages.
