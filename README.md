@@ -7,7 +7,7 @@ Use the `go-wsstat` Golang package to trace WebSocket connection and latency in 
 
 ## Install
 
-The package is built on Go 1.21 but it has been tested to work with Go 1.18, in case that is of interest. Install to use in your project with `go get`:
+Install to use in your project with `go get`:
 
 ```bash
 go get github.com/jakobilobi/go-wsstat
