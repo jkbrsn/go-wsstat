@@ -22,4 +22,18 @@ cover:
 	@sleep 1
 	@rm -f cover.out coverage.html
 
+explain:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  test           - Test the package code."
+	@echo "  test-all       - Test, lint and vet the package code."
+	@echo "  test-race      - Test race conditions."
+	@echo "  cover          - Run the go test coverage tool."
+	@echo "  lint           - Run golint on the package code."
+	@echo "  vet            - Run go vet."
+	@echo "  explain        - Display this help message."
+
 .PHONY: test-all test test-race vet lint cover
+
+.DEFAULT_GOAL := explain
