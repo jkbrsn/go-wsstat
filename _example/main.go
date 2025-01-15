@@ -16,7 +16,7 @@ func main() {
 	if len(args) < 2 {
 		log.Fatalf("Usage: go run main.go URL")
 	}
-    rawUrl := args[1]
+	rawUrl := args[1]
 
 	url, err := url.Parse(rawUrl)
 	if err != nil {
@@ -33,7 +33,10 @@ func basicExample(url *url.URL) {
 	fmt.Print("> Running basic example\n")
 	// Measure with a text message
 	var msg = "Hello, WebSocket!"
-	result, p, _ := wsstat.MeasureLatency(url, msg, http.Header{})
+	result, p, err := wsstat.MeasureLatency(url, msg, http.Header{})
+	if err != nil {
+		log.Fatalf("Failed to measure latency: %v", err)
+	}
 	fmt.Printf("Response: %s\n\n", p)
 	// Measure with a JSON message
 	/* var msg = map[string]interface{}{"json": "message", "compatible": "with", "your": "target", "ws": "server"}
@@ -51,7 +54,7 @@ func detailedExample(url *url.URL) {
 	var err error
 
 	// 1.a. Create a new WSStat instance
-    ws := wsstat.NewWSStat()
+	ws := wsstat.NewWSStat()
 	// 1.b. Load custom CA certificate if required
 	/* caCert, err := ioutil.ReadFile("path/to/ca.cert")
 	if err != nil {
@@ -74,31 +77,31 @@ func detailedExample(url *url.URL) {
 
 	// 3. Send a message and wait for the response
 	// This triggers the first message round trip timer
-    // 3.a. Write and read a message
+	// 3.a. Write and read a message
 	msg := "Hello, WebSocket!"
 	startTime, err := ws.WriteMessage(websocket.TextMessage, []byte(msg))
 	if err != nil {
-        log.Fatalf("Failed to write message: %v", err)
-    }
+		log.Fatalf("Failed to write message: %v", err)
+	}
 	msgType, p, err := ws.ReadMessage(startTime)
 	if err != nil {
 		log.Fatalf("Failed to read message: %v", err)
 	}
 	fmt.Printf("Received message '%s' of type '%d'\n\n", p, msgType)
 	// 3.b. Send a custom message and wait for the response in a single function
-    /* msg := "Hello, WebSocket!"
-	p, err := ws.SendMessage(websocket.TextMessage, []byte(msg))
-    if err != nil {
-        log.Fatalf("Failed to send message: %v", err)
-    }
-	fmt.Printf("Received message: %s\n\n", p) */
+	/* msg := "Hello, WebSocket!"
+		p, err := ws.SendMessage(websocket.TextMessage, []byte(msg))
+	    if err != nil {
+	        log.Fatalf("Failed to send message: %v", err)
+	    }
+		fmt.Printf("Received message: %s\n\n", p) */
 	// 3.c. Send a JSON message and wait for the response
 	/* var msg = map[string]interface{}{"json": "message", "compatible": "with", "your": "target", "ws": "server"}
-	p, err := ws.SendMessageJSON(msg)
-    if err != nil {
-        log.Fatalf("Failed to send message: %v", err)
-    }
-	log.Printf("Received message: %s", p) */
+		p, err := ws.SendMessageJSON(msg)
+	    if err != nil {
+	        log.Fatalf("Failed to send message: %v", err)
+	    }
+		log.Printf("Received message: %s", p) */
 	// 3.d. If not interested in the response, you can use the basic message sending method
 	/* if err := ws.SendMessageBasic(); err != nil {
 		log.Fatalf("Failed to send message: %v", err)
@@ -115,6 +118,6 @@ func detailedExample(url *url.URL) {
 		log.Fatalf("Failed to close WebSocket connection: %v", err)
 	}
 
-    // 5. Print the results
+	// 5. Print the results
 	fmt.Printf("%+v\n", ws.Result)
 }

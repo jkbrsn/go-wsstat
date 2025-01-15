@@ -313,8 +313,9 @@ func (r Result) Format(s fmt.State, verb rune) {
 		if s.Flag('+') {
 			fmt.Fprintln(s, "URL")
 			fmt.Fprintf(s, "  Scheme: %s\n", r.URL.Scheme)
-			fmt.Fprintf(s, "  Host: %s\n", r.URL.Host)
-			fmt.Fprintf(s, "  Port: %s\n", Port(r.URL))
+			host, port := hostPort(r.URL)
+			fmt.Fprintf(s, "  Host: %s\n", host)
+			fmt.Fprintf(s, "  Port: %s\n", port)
 			if r.URL.Path != "" {
 				fmt.Fprintf(s, "  Path: %s\n", r.URL.Path)
 			}
@@ -477,24 +478,25 @@ func MeasureLatencyPing(url *url.URL, customHeaders http.Header) (Result, error)
 	return *ws.Result, nil
 }
 
-// Port returns the port number from a URL.
-func Port(u url.URL) string {
-	_, port, err := net.SplitHostPort(u.Host)
+// hostPort returns the host and port from a URL.
+func hostPort(u url.URL) (string, string) {
+	host, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
 		log.Debug().Err(err).Msg("Failed to split host and port")
+		return "", ""
 	}
 	if port == "" {
 		// No port specified in the URL, return the default port based on the scheme
 		switch u.Scheme {
 		case "ws":
-			return "80"
+			return host, "80"
 		case "wss":
-			return "443"
+			return host, "443"
 		default:
-			return ""
+			return host, ""
 		}
 	}
-	return port
+	return host, port
 }
 
 // newDialer initializes and returns a websocket.Dialer with customized dial functions to measure the connection phases.
