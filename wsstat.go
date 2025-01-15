@@ -114,12 +114,16 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	ws.Result.URL = *url
 	start := time.Now()
 	headers := http.Header{}
-	headers.Add("Origin", "http://example.com") // Add as default header, required by some servers
 	for name, values := range customHeaders {
-		headers[name] = values
+		headers.Add(name, strings.Join(values, ","))
 	}
 	conn, resp, err := ws.dialer.Dial(url.String(), headers)
 	if err != nil {
+		if resp != nil {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return fmt.Errorf("failed dial response '%s': %v", string(body), err)
+		}
 		return err
 	}
 	totalDialDuration := time.Since(start)
