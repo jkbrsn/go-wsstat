@@ -332,7 +332,6 @@ func (r Result) Format(s fmt.State, verb rune) {
 
 			if r.TLSState != nil {
 				fmt.Fprintf(s, "TLS handshake details\n")
-				// TODO: tls.VersionName restricts use to go1.21+, consider alternatives
 				fmt.Fprintf(s, "  Version: %s\n", tls.VersionName(r.TLSState.Version))
 				fmt.Fprintf(s, "  Cipher Suite: %s\n", tls.CipherSuiteName(r.TLSState.CipherSuite))
 				fmt.Fprintf(s, "  Server Name: %s\n", r.TLSState.ServerName)
