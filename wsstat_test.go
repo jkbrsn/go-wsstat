@@ -14,6 +14,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -51,18 +53,11 @@ func TestMeasureLatency(t *testing.T) {
 	msg := "Hello, world!"
 	result, response, err := MeasureLatency(echoServerAddrWs, msg, http.Header{})
 
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.TotalTime <= 0 {
-		t.Errorf("Invalid total time: %v", result.TotalTime)
-	}
-	if len(response) == 0 {
-		t.Errorf("Empty response")
-	}
-	if string(response) != msg {
-		t.Errorf("Unexpected response: %s", response)
-	}
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, result.TotalTime, time.Duration(0))
+	assert.NotEqual(t, "", response)
+	assert.Equal(t, msg, string(response))
 }
 
 func TestMeasureLatencyJSON(t *testing.T) {
@@ -73,43 +68,29 @@ func TestMeasureLatencyJSON(t *testing.T) {
 	}
 	result, response, err := MeasureLatencyJSON(echoServerAddrWs, message, http.Header{})
 
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.TotalTime <= 0 {
-		t.Errorf("Invalid total time: %v", result.TotalTime)
-	}
-	if response == nil {
-		t.Errorf("Empty response")
-	}
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, result.TotalTime, time.Duration(0))
+	assert.NotEqual(t, nil, response)
+
 	responseMap, ok := response.(map[string]interface{})
-	if !ok {
-		t.Errorf("Response is not a map")
-		return
-	}
-	if responseMap["text"] != message.Text {
-		t.Errorf("Unexpected response: %s", responseMap)
-	}
+	require.True(t, ok, "Response is not a map")
+	assert.Equal(t, message.Text, responseMap["text"])
 }
 
 func TestMeasureLatencyPing(t *testing.T) {
 	result, err := MeasureLatencyPing(echoServerAddrWs, http.Header{})
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.TotalTime <= 0 {
-		t.Errorf("Invalid total time: %v", result.TotalTime)
-	}
-	if result.MessageRoundTrip <= 0 {
-		t.Errorf("Invalid message round trip time: %v", result.MessageRoundTrip)
-	}
-	if result.FirstMessageResponse <= 0 {
-		t.Errorf("Invalid first message response time: %v", result.FirstMessageResponse)
-	}
+
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, result.TotalTime, time.Duration(0))
+	assert.Greater(t, result.MessageRoundTrip, time.Duration(0))
+	assert.Greater(t, result.FirstMessageResponse, time.Duration(0))
 }
 
 func TestNewWSStat(t *testing.T) {
 	ws := NewWSStat()
+	defer ws.Close()
 
 	if ws.dialer == nil {
 		t.Error("Expected non-nil dialer")
@@ -121,6 +102,8 @@ func TestNewWSStat(t *testing.T) {
 
 func TestDial(t *testing.T) {
 	ws := NewWSStat()
+	defer ws.Close()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -130,6 +113,11 @@ func TestDial(t *testing.T) {
 
 func TestWriteReadClose(t *testing.T) {
 	ws := NewWSStat()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -137,10 +125,7 @@ func TestWriteReadClose(t *testing.T) {
 	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := []byte("Hello, world!")
-	startTime, err := ws.WriteMessage(websocket.TextMessage, message)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
+	startTime := ws.WriteMessage(websocket.TextMessage, message)
 	_, receivedMessage, err := ws.ReadMessage(startTime)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -149,16 +134,15 @@ func TestWriteReadClose(t *testing.T) {
 		t.Errorf("Received message does not match sent message")
 	}
 	validateSendResult(ws, getFunctionName(), t)
-
-	err = ws.CloseConn()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateCloseResult(ws, getFunctionName(), t)
 }
 
 func TestSendMessage(t *testing.T) {
 	ws := NewWSStat()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -174,16 +158,15 @@ func TestSendMessage(t *testing.T) {
 		t.Errorf("Received message does not match sent message")
 	}
 	validateSendResult(ws, getFunctionName(), t)
-
-	err = ws.CloseConn()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateCloseResult(ws, getFunctionName(), t)
 }
 
 func TestSendMessageJSON(t *testing.T) {
 	ws := NewWSStat()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -208,12 +191,6 @@ func TestSendMessageJSON(t *testing.T) {
 		t.Errorf("Unexpected response: %s", responseMap)
 	}
 	validateSendResult(ws, getFunctionName(), t)
-
-	err = ws.CloseConn()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateCloseResult(ws, getFunctionName(), t)
 }
 
 func TestLoggerFunctionality(t *testing.T) {
@@ -334,9 +311,6 @@ func validateSendResult(ws *WSStat, msg string, t *testing.T) {
 
 // Validation of WSStat results after CloseConn has been called
 func validateCloseResult(ws *WSStat, msg string, t *testing.T) {
-	if ws.Result.ConnectionClose <= 0 {
-		t.Errorf("Invalid ConnectionClose time in %s", msg)
-	}
 	if ws.Result.TotalTime <= 0 {
 		t.Errorf("Invalid TotalTime in %s", msg)
 	}

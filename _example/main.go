@@ -55,6 +55,7 @@ func detailedExample(url *url.URL) {
 
 	// 1.a. Create a new WSStat instance
 	ws := wsstat.NewWSStat()
+	defer ws.Close()
 	// 1.b. Load custom CA certificate if required
 	/* caCert, err := ioutil.ReadFile("path/to/ca.cert")
 	if err != nil {
@@ -79,10 +80,7 @@ func detailedExample(url *url.URL) {
 	// This triggers the first message round trip timer
 	// 3.a. Write and read a message
 	msg := "Hello, WebSocket!"
-	startTime, err := ws.WriteMessage(websocket.TextMessage, []byte(msg))
-	if err != nil {
-		log.Fatalf("Failed to write message: %v", err)
-	}
+	startTime := ws.WriteMessage(websocket.TextMessage, []byte(msg))
 	msgType, p, err := ws.ReadMessage(startTime)
 	if err != nil {
 		log.Fatalf("Failed to read message: %v", err)
@@ -102,18 +100,14 @@ func detailedExample(url *url.URL) {
 	        log.Fatalf("Failed to send message: %v", err)
 	    }
 		log.Printf("Received message: %s", p) */
-	// 3.d. If not interested in the response, you can use the basic message sending method
-	/* if err := ws.SendMessageBasic(); err != nil {
-		log.Fatalf("Failed to send message: %v", err)
-	} */
-	// 3.e. Alternatively just send a ping message
+	// 3.e. Alternatively send a ping
 	/* if err := ws.SendPing(); err != nil {
 		log.Fatalf("Failed to send ping: %v", err)
 	} */
 
-	// 4. Close the WebSocket connection
-	// This triggers the total connection time timer, which includes the call to close the connection
-	err = ws.CloseConn()
+	// 4. Close the WSStat instance
+	// This triggers the total duration timer as well as closes the WebSocket connection
+	ws.Close()
 	if err != nil {
 		log.Fatalf("Failed to close WebSocket connection: %v", err)
 	}
