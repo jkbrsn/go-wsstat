@@ -92,6 +92,7 @@ type WSStat struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
+	wgPumps   sync.WaitGroup
 }
 
 // wsRead holds the data read from the WebSocket connection.
@@ -149,7 +150,11 @@ func (ws *WSStat) calculateResult() {
 
 // readPump reads messages from the WebSocket connection and sends them to the read channel.
 func (ws *WSStat) readPump() {
-	defer ws.Close()
+	defer func() {
+		ws.wgPumps.Done()
+		ws.Close()
+	}()
+
 	for {
 		select {
 		case <-ws.ctx.Done():
@@ -173,10 +178,19 @@ func (ws *WSStat) readPump() {
 
 // writePump writes messages to the WebSocket connection.
 func (ws *WSStat) writePump() {
-	defer ws.Close()
+	defer func() {
+		ws.wgPumps.Done()
+		ws.Close()
+	}()
+
 	for {
 		select {
-		case write := <-ws.writeChan:
+		case write, ok := <-ws.writeChan:
+			if !ok {
+				// Channel closed, exit write pump
+				return
+			}
+
 			if err := ws.conn.WriteMessage(write.messageType, write.data); err != nil {
 				logger.Debug().Err(err).Msg("Failed to write message")
 				return
@@ -191,8 +205,14 @@ func (ws *WSStat) writePump() {
 // Sets result times: CloseDone, TotalTime
 func (ws *WSStat) Close() {
 	ws.closeOnce.Do(func() {
+		// Cancel the context
+		ws.cancel()
+
 		// If the connection is not already closed, close it gracefully
 		if ws.conn != nil {
+			// Set read deadline to stop reading messages
+			ws.conn.SetReadDeadline(time.Now())
+
 			// Send close frame
 			formattedCloseMessage := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
 			deadline := time.Now().Add(time.Second)
@@ -205,14 +225,29 @@ func (ws *WSStat) Close() {
 			if err != nil {
 				logger.Debug().Err(err).Msg("Failed to close connection")
 			}
+			ws.conn = nil
 		}
 
 		// Calculate timings and set result
 		ws.timings.CloseDone = time.Now()
 		ws.calculateResult()
 
-		// Cancel the context
-		ws.cancel()
+		// Wait for pumps to finish
+		pumpsTimeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			ws.wgPumps.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// All goroutines finished
+		case <-pumpsTimeoutCtx.Done():
+			logger.Warn().Msg("Timeout closing WSStat pumps")
+		}
 
 		// Close the pump channels
 		close(ws.readChan)
@@ -243,6 +278,7 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	ws.conn = conn
 
 	// Start the read and write pumps
+	ws.wgPumps.Add(2)
 	go ws.readPump()
 	go ws.writePump()
 
