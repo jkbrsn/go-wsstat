@@ -59,15 +59,17 @@ func TestNewWSStat(t *testing.T) {
 }
 
 func TestDial(t *testing.T) {
+	testStart := time.Now()
 	ws := NewWSStat()
 	defer ws.Close()
 
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	assert.NoError(t, err)
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 }
 
 func TestWriteReadClose(t *testing.T) {
+	testStart := time.Now()
 	ws := NewWSStat()
 	defer func() {
 		ws.Close()
@@ -76,17 +78,22 @@ func TestWriteReadClose(t *testing.T) {
 
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	assert.NoError(t, err)
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := []byte("Hello, world!")
-	startTime := ws.WriteMessage(websocket.TextMessage, message)
-	_, receivedMessage, err := ws.ReadMessage(startTime)
+	ws.WriteMessage(websocket.TextMessage, message)
+	_, receivedMessage, err := ws.ReadMessage()
 	assert.NoError(t, err)
 	assert.Equal(t, message, receivedMessage, "Received message does not match sent message")
+
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
 	validateSendResult(ws, getFunctionName(), t)
 }
 
 func TestSendMessage(t *testing.T) {
+	testStart := time.Now()
 	ws := NewWSStat()
 	defer func() {
 		ws.Close()
@@ -95,16 +102,21 @@ func TestSendMessage(t *testing.T) {
 
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	assert.NoError(t, err)
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := []byte("Hello, world!")
 	response, err := ws.SendMessage(websocket.TextMessage, message)
 	assert.NoError(t, err)
 	assert.Equal(t, message, response, "Received message does not match sent message")
+
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
 	validateSendResult(ws, getFunctionName(), t)
 }
 
 func TestSendMessageJSON(t *testing.T) {
+	testStart := time.Now()
 	ws := NewWSStat()
 	defer func() {
 		ws.Close()
@@ -113,7 +125,7 @@ func TestSendMessageJSON(t *testing.T) {
 
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	assert.NoError(t, err)
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := struct {
 		Text string `json:"text"`
@@ -125,6 +137,10 @@ func TestSendMessageJSON(t *testing.T) {
 	responseMap, ok := response.(map[string]interface{})
 	require.True(t, ok, "Response is not a map")
 	assert.Equal(t, message.Text, responseMap["text"])
+
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
 	validateSendResult(ws, getFunctionName(), t)
 }
 
@@ -199,19 +215,27 @@ func startEchoServer(addr string) {
 }
 
 // Validation of WSStat results after Dial has been called
-func validateDialResult(ws *WSStat, url *url.URL, msg string, t *testing.T) {
-	assert.Greater(t, ws.Result.DNSLookup, time.Duration(0), "Invalid DNSLookup time in %s", msg)
-	assert.Greater(t, ws.Result.DNSLookupDone, time.Duration(0), "Invalid DNSLookupDone time in %s", msg)
-	assert.Greater(t, ws.Result.TCPConnection, time.Duration(0), "Invalid TCPConnection time in %s", msg)
-	assert.Greater(t, ws.Result.TCPConnected, time.Duration(0), "Invalid TCPConnected time in %s", msg)
+func validateDialResult(testStart time.Time, ws *WSStat, url *url.URL, msg string, t *testing.T) {
+	assert.Greater(t,
+		ws.timings.DNSLookupDone.Sub(testStart),
+		time.Duration(0),
+		"Invalid DNSLookupDone time in %s", msg)
+	assert.Greater(t,
+		ws.timings.TCPConnected.Sub(ws.timings.DNSLookupDone),
+		time.Duration(0),
+		"Invalid TCPConnected time in %s", msg)
 
 	if strings.Contains(url.String(), "wss://") {
-		assert.Greater(t, ws.Result.TLSHandshake, time.Duration(0), "Invalid TLSHandshake time in %s", msg)
-		assert.Greater(t, ws.Result.TLSHandshakeDone, time.Duration(0), "Invalid TLSHandshakeDone time in %s", msg)
+		assert.Greater(t,
+			ws.timings.TLSHandshakeDone.Sub(ws.timings.DNSLookupDone),
+			time.Duration(0),
+			"Invalid TLSHandshakeDone time in %s", msg)
 	}
 
-	assert.Greater(t, ws.Result.WSHandshake, time.Duration(0), "Invalid WSHandshake time in %s", msg)
-	assert.Greater(t, ws.Result.WSHandshakeDone, time.Duration(0), "Invalid WSHandshakeDone time in %s", msg)
+	assert.Greater(t,
+		ws.timings.WSHandshakeDone.Sub(ws.timings.TCPConnected),
+		time.Duration(0),
+		"Invalid WSHandshakeDone time in %s", msg)
 }
 
 // Validation of WSStat results after ReadMessage or SendMessage have been called

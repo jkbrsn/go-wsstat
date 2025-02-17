@@ -18,8 +18,8 @@ func MeasureLatency(url *url.URL, msg string, customHeaders http.Header) (Result
 		logger.Debug().Err(err).Msg("Failed to establish WebSocket connection")
 		return Result{}, nil, err
 	}
-	start := ws.WriteMessage(websocket.TextMessage, []byte(msg))
-	_, p, err := ws.ReadMessage(start)
+	ws.WriteMessage(websocket.TextMessage, []byte(msg))
+	_, p, err := ws.ReadMessage()
 	if err != nil {
 		logger.Debug().Err(err).Msg("Failed to read message")
 		return Result{}, nil, err
