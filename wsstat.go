@@ -52,7 +52,7 @@ type CertificateDetails struct {
 // the connection timeline, and other relevant connection details.
 type Result struct {
 	IPs             []string             // IP addresses of the WebSocket connection
-	URL             url.URL              // URL of the WebSocket connection
+	URL             *url.URL             // URL of the WebSocket connection
 	RequestHeaders  http.Header          // Headers of the initial request
 	ResponseHeaders http.Header          // Headers of the response
 	TLSState        *tls.ConnectionState // State of the TLS connection
@@ -259,7 +259,7 @@ func (ws *WSStat) Close() {
 // If required, specify custom headers to merge with the default headers.
 // Sets times: dialStart, wsHandshakeDone
 func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
-	ws.Result.URL = *url
+	ws.Result.URL = url
 	headers := http.Header{}
 	for name, values := range customHeaders {
 		headers.Add(name, strings.Join(values, ","))
@@ -309,6 +309,32 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	ws.Result.ResponseHeaders = resp.Header
 
 	return nil
+}
+
+// ExtractResult calculate the current results and returns a copy of the Result object.
+func (ws *WSStat) ExtractResult() Result {
+	ws.calculateResult()
+
+	resultCopy := Result{
+		IPs:                  ws.Result.IPs,
+		URL:                  ws.Result.URL,
+		RequestHeaders:       ws.Result.RequestHeaders,
+		ResponseHeaders:      ws.Result.ResponseHeaders,
+		TLSState:             ws.Result.TLSState,
+		DNSLookup:            ws.Result.DNSLookup,
+		TCPConnection:        ws.Result.TCPConnection,
+		TLSHandshake:         ws.Result.TLSHandshake,
+		WSHandshake:          ws.Result.WSHandshake,
+		MessageRoundTrip:     ws.Result.MessageRoundTrip,
+		DNSLookupDone:        ws.Result.DNSLookupDone,
+		TCPConnected:         ws.Result.TCPConnected,
+		TLSHandshakeDone:     ws.Result.TLSHandshakeDone,
+		WSHandshakeDone:      ws.Result.WSHandshakeDone,
+		FirstMessageResponse: ws.Result.FirstMessageResponse,
+		TotalTime:            ws.Result.TotalTime,
+	}
+
+	return resultCopy
 }
 
 // OneHitMessage sends a single message through the WebSocket connection, and waits for
@@ -564,7 +590,7 @@ func (r Result) Format(s fmt.State, verb rune) {
 }
 
 // hostPort returns the host and port from a URL.
-func hostPort(u url.URL) (string, string) {
+func hostPort(u *url.URL) (string, string) {
 	host, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
 		log.Debug().Err(err).Msg("Failed to split host and port")
