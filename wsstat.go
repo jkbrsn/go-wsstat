@@ -359,9 +359,11 @@ func (ws *WSStat) WriteMessageJSON(v interface{}) {
 	ws.writeChan <- &wsWrite{data: jsonBytes.Bytes(), messageType: websocket.TextMessage}
 }
 
-// SendMessage sends a message through the WebSocket connection and measures the round-trip time.
+// OneHitMessage sends a single message through the WebSocket connection, and waits for
+// the response. Note: this function assumes that the response received is the response to the
+// sent message, make sure to only run this function sequentially to avoid unexpected behavior.
 // Sets result times: MessageReads, MessageWrites
-func (ws *WSStat) SendMessage(messageType int, data []byte) ([]byte, error) {
+func (ws *WSStat) OneHitMessage(messageType int, data []byte) ([]byte, error) {
 	ws.WriteMessage(messageType, data)
 
 	// Assuming immediate response
@@ -373,9 +375,11 @@ func (ws *WSStat) SendMessage(messageType int, data []byte) ([]byte, error) {
 	return p, nil
 }
 
-// SendMessageJSON sends a message through the WebSocket connection and measures the round-trip time.
+// OneHitMessageJSON sends a single JSON message through the WebSocket connection, and waits for
+// the response. Note: this function assumes that the response received is the response to the
+// sent message, make sure to only run this function sequentially to avoid unexpected behavior.
 // Sets result times: MessageReads, MessageWrites
-func (ws *WSStat) SendMessageJSON(v interface{}) (interface{}, error) {
+func (ws *WSStat) OneHitMessageJSON(v interface{}) (interface{}, error) {
 	ws.WriteMessageJSON(v)
 
 	// Assuming immediate response
@@ -387,9 +391,11 @@ func (ws *WSStat) SendMessageJSON(v interface{}) (interface{}, error) {
 	return resp, nil
 }
 
-// SendPing sends a ping message through the WebSocket connection and measures the round-trip time until the pong response.
+// PingPong sends a ping message through the WebSocket connection and awaits the pong.
+// Note: this function assumes that the pong received is the response to the sent message,
+// make sure to only run this function sequentially to avoid unexpected behavior.
 // Sets result times: MessageReads, MessageWrites
-func (ws *WSStat) SendPing() error {
+func (ws *WSStat) PingPong() error {
 	pongReceived := make(chan bool)
 	timeout := time.After(5 * time.Second)
 
@@ -398,8 +404,7 @@ func (ws *WSStat) SendPing() error {
 		return nil
 	})
 
-	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
-	ws.writeChan <- &wsWrite{messageType: websocket.PingMessage}
+	ws.WriteMessage(websocket.PingMessage, nil)
 
 	select {
 	case <-pongReceived:

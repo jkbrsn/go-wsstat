@@ -40,7 +40,7 @@ func MeasureLatencyJSON(url *url.URL, v interface{}, customHeaders http.Header) 
 		logger.Debug().Err(err).Msg("Failed to establish WebSocket connection")
 		return Result{}, nil, err
 	}
-	p, err := ws.SendMessageJSON(v)
+	p, err := ws.OneHitMessageJSON(v)
 	if err != nil {
 		logger.Debug().Err(err).Msg("Failed to send message")
 		return Result{}, nil, err
@@ -61,7 +61,7 @@ func MeasureLatencyPing(url *url.URL, customHeaders http.Header) (Result, error)
 		logger.Debug().Err(err).Msg("Failed to establish WebSocket connection")
 		return Result{}, err
 	}
-	err := ws.SendPing()
+	err := ws.PingPong()
 	if err != nil {
 		logger.Debug().Err(err).Msg("Failed to send ping")
 		return Result{}, err

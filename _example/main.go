@@ -88,20 +88,20 @@ func detailedExample(url *url.URL) {
 	fmt.Printf("Received message '%s' of type '%d'\n\n", p, msgType)
 	// 3.b. Send a custom message and wait for the response in a single function
 	/* msg := "Hello, WebSocket!"
-		p, err := ws.SendMessage(websocket.TextMessage, []byte(msg))
+		p, err := ws.OneHitMessage(websocket.TextMessage, []byte(msg))
 	    if err != nil {
 	        log.Fatalf("Failed to send message: %v", err)
 	    }
 		fmt.Printf("Received message: %s\n\n", p) */
 	// 3.c. Send a JSON message and wait for the response
 	/* var msg = map[string]interface{}{"json": "message", "compatible": "with", "your": "target", "ws": "server"}
-		p, err := ws.SendMessageJSON(msg)
+		p, err := ws.OneHitMessageJSON(msg)
 	    if err != nil {
 	        log.Fatalf("Failed to send message: %v", err)
 	    }
 		log.Printf("Received message: %s", p) */
 	// 3.e. Alternatively send a ping
-	/* if err := ws.SendPing(); err != nil {
+	/* if err := ws.PingPong(); err != nil {
 		log.Fatalf("Failed to send ping: %v", err)
 	} */
 

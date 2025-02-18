@@ -92,7 +92,7 @@ func TestWriteReadClose(t *testing.T) {
 	validateSendResult(ws, getFunctionName(), t)
 }
 
-func TestSendMessage(t *testing.T) {
+func TestOneHitMessage(t *testing.T) {
 	testStart := time.Now()
 	ws := New()
 	defer func() {
@@ -105,7 +105,7 @@ func TestSendMessage(t *testing.T) {
 	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := []byte("Hello, world!")
-	response, err := ws.SendMessage(websocket.TextMessage, message)
+	response, err := ws.OneHitMessage(websocket.TextMessage, message)
 	assert.NoError(t, err)
 	assert.Equal(t, message, response, "Received message does not match sent message")
 
@@ -115,7 +115,7 @@ func TestSendMessage(t *testing.T) {
 	validateSendResult(ws, getFunctionName(), t)
 }
 
-func TestSendMessageJSON(t *testing.T) {
+func TestOneHitMessageJSON(t *testing.T) {
 	testStart := time.Now()
 	ws := New()
 	defer func() {
@@ -132,7 +132,7 @@ func TestSendMessageJSON(t *testing.T) {
 	}{
 		Text: "Hello, world!",
 	}
-	response, err := ws.SendMessageJSON(message)
+	response, err := ws.OneHitMessageJSON(message)
 	assert.NoError(t, err)
 	responseMap, ok := response.(map[string]interface{})
 	require.True(t, ok, "Response is not a map")
