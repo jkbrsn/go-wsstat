@@ -311,54 +311,6 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	return nil
 }
 
-// ReadMessage reads a message from the WebSocket connection and measures the round-trip time.
-// Sets time: MessageReads
-func (ws *WSStat) ReadMessage() (int, []byte, error) {
-	msg := <-ws.readChan
-	if msg.err != nil {
-		return msg.messageType, nil, msg.err
-	}
-
-	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
-
-	return msg.messageType, msg.data, nil
-}
-
-// ReadMessageJSON reads a message from the WebSocket connection and measures the round-trip time.
-// Sets time: MessageReads
-func (ws *WSStat) ReadMessageJSON() (interface{}, error) {
-	msg := <-ws.readChan
-	if msg.err != nil {
-		return nil, msg.err
-	}
-
-	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
-
-	var resp interface{}
-	err := json.Unmarshal(msg.data, &resp)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
-}
-
-// WriteMessage sends a message through the WebSocket connection.
-// Sets time: MessageWrites
-func (ws *WSStat) WriteMessage(messageType int, data []byte) {
-	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
-	ws.writeChan <- &wsWrite{data: data, messageType: messageType}
-}
-
-// WriteMessageJSON sends a message through the WebSocket connection.
-// Sets time: MessageWrites
-func (ws *WSStat) WriteMessageJSON(v interface{}) {
-	jsonBytes := new(bytes.Buffer)
-	json.NewEncoder(jsonBytes).Encode(&v)
-	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
-	ws.writeChan <- &wsWrite{data: jsonBytes.Bytes(), messageType: websocket.TextMessage}
-}
-
 // OneHitMessage sends a single message through the WebSocket connection, and waits for
 // the response. Note: this function assumes that the response received is the response to the
 // sent message, make sure to only run this function sequentially to avoid unexpected behavior.
@@ -414,6 +366,54 @@ func (ws *WSStat) PingPong() error {
 	}
 
 	return nil
+}
+
+// ReadMessage reads a message from the WebSocket connection and measures the round-trip time.
+// Sets time: MessageReads
+func (ws *WSStat) ReadMessage() (int, []byte, error) {
+	msg := <-ws.readChan
+	if msg.err != nil {
+		return msg.messageType, nil, msg.err
+	}
+
+	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
+
+	return msg.messageType, msg.data, nil
+}
+
+// ReadMessageJSON reads a message from the WebSocket connection and measures the round-trip time.
+// Sets time: MessageReads
+func (ws *WSStat) ReadMessageJSON() (interface{}, error) {
+	msg := <-ws.readChan
+	if msg.err != nil {
+		return nil, msg.err
+	}
+
+	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
+
+	var resp interface{}
+	err := json.Unmarshal(msg.data, &resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// WriteMessage sends a message through the WebSocket connection.
+// Sets time: MessageWrites
+func (ws *WSStat) WriteMessage(messageType int, data []byte) {
+	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
+	ws.writeChan <- &wsWrite{data: data, messageType: messageType}
+}
+
+// WriteMessageJSON sends a message through the WebSocket connection.
+// Sets time: MessageWrites
+func (ws *WSStat) WriteMessageJSON(v interface{}) {
+	jsonBytes := new(bytes.Buffer)
+	json.NewEncoder(jsonBytes).Encode(&v)
+	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
+	ws.writeChan <- &wsWrite{data: jsonBytes.Bytes(), messageType: websocket.TextMessage}
 }
 
 // durations returns a map of the time.Duration members of Result.
