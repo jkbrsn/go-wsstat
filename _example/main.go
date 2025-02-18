@@ -54,7 +54,7 @@ func detailedExample(url *url.URL) {
 	var err error
 
 	// 1.a. Create a new WSStat instance
-	ws := wsstat.NewWSStat()
+	ws := wsstat.New()
 	defer ws.Close()
 	// 1.b. Load custom CA certificate if required
 	/* caCert, err := ioutil.ReadFile("path/to/ca.cert")
@@ -80,8 +80,8 @@ func detailedExample(url *url.URL) {
 	// This triggers the first message round trip timer
 	// 3.a. Write and read a message
 	msg := "Hello, WebSocket!"
-	startTime := ws.WriteMessage(websocket.TextMessage, []byte(msg))
-	msgType, p, err := ws.ReadMessage(startTime)
+	ws.WriteMessage(websocket.TextMessage, []byte(msg))
+	msgType, p, err := ws.ReadMessage()
 	if err != nil {
 		log.Fatalf("Failed to read message: %v", err)
 	}

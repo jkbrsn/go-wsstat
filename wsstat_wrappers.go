@@ -11,7 +11,7 @@ import (
 // WebSocket connection, sends a message, reads the response, and closes the connection.
 // Note: sets all times in the Result object.
 func MeasureLatency(url *url.URL, msg string, customHeaders http.Header) (Result, []byte, error) {
-	ws := NewWSStat()
+	ws := New()
 	defer ws.Close()
 
 	if err := ws.Dial(url, customHeaders); err != nil {
@@ -33,7 +33,7 @@ func MeasureLatency(url *url.URL, msg string, customHeaders http.Header) (Result
 // WebSocket connection, sends a JSON message, reads the response, and closes the connection.
 // Note: sets all times in the Result object.
 func MeasureLatencyJSON(url *url.URL, v interface{}, customHeaders http.Header) (Result, interface{}, error) {
-	ws := NewWSStat()
+	ws := New()
 	defer ws.Close()
 
 	if err := ws.Dial(url, customHeaders); err != nil {
@@ -54,7 +54,7 @@ func MeasureLatencyJSON(url *url.URL, v interface{}, customHeaders http.Header) 
 // WebSocket connection, sends a ping message, awaits the pong response, and closes the connection.
 // Note: sets all times in the Result object.
 func MeasureLatencyPing(url *url.URL, customHeaders http.Header) (Result, error) {
-	ws := NewWSStat()
+	ws := New()
 	defer ws.Close()
 
 	if err := ws.Dial(url, customHeaders); err != nil {

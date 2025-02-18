@@ -643,8 +643,8 @@ func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 	}
 }
 
-// NewWSStat creates and returns a new WSStat instance.
-func NewWSStat() *WSStat {
+// New creates and returns a new WSStat instance.
+func New() *WSStat {
 	result := &Result{}
 	timings := &wsTimings{}
 	dialer := newDialer(result, timings)

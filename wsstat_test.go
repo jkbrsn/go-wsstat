@@ -49,8 +49,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestNewWSStat(t *testing.T) {
-	ws := NewWSStat()
+func TestNew(t *testing.T) {
+	ws := New()
 	defer ws.Close()
 
 	assert.NotNil(t, ws)
@@ -60,7 +60,7 @@ func TestNewWSStat(t *testing.T) {
 
 func TestDial(t *testing.T) {
 	testStart := time.Now()
-	ws := NewWSStat()
+	ws := New()
 	defer ws.Close()
 
 	err := ws.Dial(echoServerAddrWs, http.Header{})
@@ -70,7 +70,7 @@ func TestDial(t *testing.T) {
 
 func TestWriteReadClose(t *testing.T) {
 	testStart := time.Now()
-	ws := NewWSStat()
+	ws := New()
 	defer func() {
 		ws.Close()
 		validateCloseResult(ws, getFunctionName(), t)
@@ -94,7 +94,7 @@ func TestWriteReadClose(t *testing.T) {
 
 func TestSendMessage(t *testing.T) {
 	testStart := time.Now()
-	ws := NewWSStat()
+	ws := New()
 	defer func() {
 		ws.Close()
 		validateCloseResult(ws, getFunctionName(), t)
@@ -117,7 +117,7 @@ func TestSendMessage(t *testing.T) {
 
 func TestSendMessageJSON(t *testing.T) {
 	testStart := time.Now()
-	ws := NewWSStat()
+	ws := New()
 	defer func() {
 		ws.Close()
 		validateCloseResult(ws, getFunctionName(), t)
