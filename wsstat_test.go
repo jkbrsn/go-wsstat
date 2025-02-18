@@ -217,23 +217,23 @@ func startEchoServer(addr string) {
 // Validation of WSStat results after Dial has been called
 func validateDialResult(testStart time.Time, ws *WSStat, url *url.URL, msg string, t *testing.T) {
 	assert.Greater(t,
-		ws.timings.DNSLookupDone.Sub(testStart),
+		ws.timings.dnsLookupDone.Sub(testStart),
 		time.Duration(0),
 		"Invalid DNSLookupDone time in %s", msg)
 	assert.Greater(t,
-		ws.timings.TCPConnected.Sub(ws.timings.DNSLookupDone),
+		ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone),
 		time.Duration(0),
 		"Invalid TCPConnected time in %s", msg)
 
 	if strings.Contains(url.String(), "wss://") {
 		assert.Greater(t,
-			ws.timings.TLSHandshakeDone.Sub(ws.timings.DNSLookupDone),
+			ws.timings.tlsHandshakeDone.Sub(ws.timings.dnsLookupDone),
 			time.Duration(0),
 			"Invalid TLSHandshakeDone time in %s", msg)
 	}
 
 	assert.Greater(t,
-		ws.timings.WSHandshakeDone.Sub(ws.timings.TCPConnected),
+		ws.timings.wsHandshakeDone.Sub(ws.timings.tcpConnected),
 		time.Duration(0),
 		"Invalid WSHandshakeDone time in %s", msg)
 }

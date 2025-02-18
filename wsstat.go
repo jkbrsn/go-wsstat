@@ -51,12 +51,11 @@ type CertificateDetails struct {
 // Result holds durations of each phase of a WebSocket connection, cumulative durations over
 // the connection timeline, and other relevant connection details.
 type Result struct {
-	IPs []string // IP addresses of the WebSocket connection
-	URL url.URL  // URL of the WebSocket connection
-
-	// Timings of each phase of the connection
-	DialStart time.Time // Time when the dialing process started
-	CloseDone time.Time // Time when the connection was closed
+	IPs             []string             // IP addresses of the WebSocket connection
+	URL             url.URL              // URL of the WebSocket connection
+	RequestHeaders  http.Header          // Headers of the initial request
+	ResponseHeaders http.Header          // Headers of the response
+	TLSState        *tls.ConnectionState // State of the TLS connection
 
 	// Duration of each phase of the connection
 	DNSLookup        time.Duration // Time to resolve DNS
@@ -72,11 +71,6 @@ type Result struct {
 	WSHandshakeDone      time.Duration // Time until the WS handshake is completed
 	FirstMessageResponse time.Duration // Time until the first message is received
 	TotalTime            time.Duration // Total time from opening to closing the connection
-
-	// Other connection details
-	RequestHeaders  http.Header          // Headers of the initial request
-	ResponseHeaders http.Header          // Headers of the response
-	TLSState        *tls.ConnectionState // State of the TLS connection
 }
 
 // WSStat wraps the gorilla/websocket package with latency measuring capabilities.
@@ -110,42 +104,49 @@ type wsWrite struct {
 
 // wsTimings holds the timings of each event in the WebSocket connection timeline.
 type wsTimings struct {
-	DialStart        time.Time   // Time when the dialing process started
-	DNSLookupDone    time.Time   // Time when the DNS lookup is done
-	TCPConnected     time.Time   // Time when the TCP connection is established
-	TLSHandshakeDone time.Time   // Time when the TLS handshake is completed
-	WSHandshakeDone  time.Time   // Time when the WS handshake is completed
-	MessageWrites    []time.Time // Times when messages are sent
-	MessageReads     []time.Time // Times when messages are received
-	CloseDone        time.Time   // Time when the connection was closed
+	dialStart        time.Time   // Time when the dialing process started
+	dnsLookupDone    time.Time   // Time when the DNS lookup is done
+	tcpConnected     time.Time   // Time when the TCP connection is established
+	tlsHandshakeDone time.Time   // Time when the TLS handshake is completed
+	wsHandshakeDone  time.Time   // Time when the WS handshake is completed
+	messageWrites    []time.Time // Times when messages are sent
+	messageReads     []time.Time // Times when messages are received
+	closeDone        time.Time   // Time when the connection was closed
 }
 
+// calculateResult calculates the durations of each phase of the WebSocket connection based
+// on the current state of the WSStat timings.
 func (ws *WSStat) calculateResult() {
 	// Calculate durations
-	ws.Result.DNSLookup = ws.timings.DNSLookupDone.Sub(ws.timings.DialStart)
-	ws.Result.TCPConnection = ws.timings.TCPConnected.Sub(ws.timings.DNSLookupDone)
-	ws.Result.TLSHandshake = ws.timings.TLSHandshakeDone.Sub(ws.timings.TCPConnected)
-	ws.Result.WSHandshake = ws.timings.WSHandshakeDone.Sub(ws.timings.TLSHandshakeDone)
+	ws.Result.DNSLookup = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
+	ws.Result.TCPConnection = ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone)
+	ws.Result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
+	ws.Result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
 	// TODO: this assumes exatly one read and write has occured, add support for multiple reads and writes
-	if len(ws.timings.MessageReads) != 1 && len(ws.timings.MessageWrites) != 1 {
+	if len(ws.timings.messageReads) != 1 && len(ws.timings.messageWrites) != 1 {
 		logger.Debug().Msg("Multiple reads and writes are not supported yet")
 		ws.Result.MessageRoundTrip = 0
 	} else {
-		ws.Result.MessageRoundTrip = ws.timings.MessageReads[0].Sub(ws.timings.MessageWrites[0])
+		ws.Result.MessageRoundTrip = ws.timings.messageReads[0].Sub(ws.timings.messageWrites[0])
 	}
 
 	// Calculate cumulative durations
-	ws.Result.DNSLookupDone = ws.timings.DNSLookupDone.Sub(ws.timings.DialStart)
-	ws.Result.TCPConnected = ws.timings.TCPConnected.Sub(ws.timings.DialStart)
-	ws.Result.TLSHandshakeDone = ws.timings.TLSHandshakeDone.Sub(ws.timings.DialStart)
-	ws.Result.WSHandshakeDone = ws.timings.WSHandshakeDone.Sub(ws.timings.DialStart)
-	if len(ws.timings.MessageReads) != 1 {
+	ws.Result.DNSLookupDone = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
+	ws.Result.TCPConnected = ws.timings.tcpConnected.Sub(ws.timings.dialStart)
+	ws.Result.TLSHandshakeDone = ws.timings.tlsHandshakeDone.Sub(ws.timings.dialStart)
+	ws.Result.WSHandshakeDone = ws.timings.wsHandshakeDone.Sub(ws.timings.dialStart)
+	if len(ws.timings.messageReads) != 1 {
 		logger.Debug().Msg("Multiple reads are not supported yet")
 		ws.Result.FirstMessageResponse = 0
 	} else {
-		ws.Result.FirstMessageResponse = ws.timings.MessageReads[0].Sub(ws.timings.DialStart)
+		ws.Result.FirstMessageResponse = ws.timings.messageReads[0].Sub(ws.timings.dialStart)
 	}
-	ws.Result.TotalTime = ws.timings.CloseDone.Sub(ws.timings.DialStart)
+	// If the WSStat is not yet closed, set the total time to the current time
+	if ws.timings.closeDone.IsZero() {
+		ws.Result.TotalTime = time.Since(ws.timings.dialStart)
+	} else {
+		ws.Result.TotalTime = ws.timings.closeDone.Sub(ws.timings.dialStart)
+	}
 }
 
 // readPump reads messages from the WebSocket connection and sends them to the read channel.
@@ -201,7 +202,7 @@ func (ws *WSStat) writePump() {
 }
 
 // Close closes the WebSocket connection and cleans up the WSStat instance.
-// Sets result times: CloseDone, TotalTime
+// Sets result times: CloseDone
 func (ws *WSStat) Close() {
 	ws.closeOnce.Do(func() {
 		// Cancel the context
@@ -228,7 +229,7 @@ func (ws *WSStat) Close() {
 		}
 
 		// Calculate timings and set result
-		ws.timings.CloseDone = time.Now()
+		ws.timings.closeDone = time.Now()
 		ws.calculateResult()
 
 		// Wait for pumps to finish
@@ -256,14 +257,14 @@ func (ws *WSStat) Close() {
 
 // Dial establishes a new WebSocket connection using the custom dialer defined in this package.
 // If required, specify custom headers to merge with the default headers.
-// Sets result times: DialStart, WSHandshake, WSHandshakeDone
+// Sets times: dialStart, wsHandshakeDone
 func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	ws.Result.URL = *url
 	headers := http.Header{}
 	for name, values := range customHeaders {
 		headers.Add(name, strings.Join(values, ","))
 	}
-	ws.timings.DialStart = time.Now()
+	ws.timings.dialStart = time.Now()
 	conn, resp, err := ws.dialer.Dial(url.String(), headers)
 	if err != nil {
 		if resp != nil {
@@ -273,7 +274,7 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 		}
 		return err
 	}
-	ws.timings.WSHandshakeDone = time.Now()
+	ws.timings.wsHandshakeDone = time.Now()
 	ws.conn = conn
 
 	// Start the read and write pumps
@@ -311,27 +312,27 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 }
 
 // ReadMessage reads a message from the WebSocket connection and measures the round-trip time.
-// Sets result times: MessageRoundTrip, FirstMessageResponse
+// Sets time: MessageReads
 func (ws *WSStat) ReadMessage() (int, []byte, error) {
 	msg := <-ws.readChan
 	if msg.err != nil {
 		return msg.messageType, nil, msg.err
 	}
 
-	ws.timings.MessageReads = append(ws.timings.MessageReads, time.Now())
+	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
 
 	return msg.messageType, msg.data, nil
 }
 
 // ReadMessageJSON reads a message from the WebSocket connection and measures the round-trip time.
-// Sets result times: MessageRoundTrip, FirstMessageResponse
+// Sets time: MessageReads
 func (ws *WSStat) ReadMessageJSON() (interface{}, error) {
 	msg := <-ws.readChan
 	if msg.err != nil {
 		return nil, msg.err
 	}
 
-	ws.timings.MessageReads = append(ws.timings.MessageReads, time.Now())
+	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
 
 	var resp interface{}
 	err := json.Unmarshal(msg.data, &resp)
@@ -342,22 +343,24 @@ func (ws *WSStat) ReadMessageJSON() (interface{}, error) {
 	return resp, nil
 }
 
-// WriteMessage sends a message through the WebSocket connection and starts a timer
-// to measure the round-trip time.
+// WriteMessage sends a message through the WebSocket connection.
+// Sets time: MessageWrites
 func (ws *WSStat) WriteMessage(messageType int, data []byte) {
-	ws.timings.MessageWrites = append(ws.timings.MessageWrites, time.Now())
+	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
 	ws.writeChan <- &wsWrite{data: data, messageType: messageType}
 }
 
+// WriteMessageJSON sends a message through the WebSocket connection.
+// Sets time: MessageWrites
 func (ws *WSStat) WriteMessageJSON(v interface{}) {
 	jsonBytes := new(bytes.Buffer)
 	json.NewEncoder(jsonBytes).Encode(&v)
-	ws.timings.MessageWrites = append(ws.timings.MessageWrites, time.Now())
+	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
 	ws.writeChan <- &wsWrite{data: jsonBytes.Bytes(), messageType: websocket.TextMessage}
 }
 
 // SendMessage sends a message through the WebSocket connection and measures the round-trip time.
-// Sets result times: MessageRoundTrip, FirstMessageResponse
+// Sets result times: MessageReads, MessageWrites
 func (ws *WSStat) SendMessage(messageType int, data []byte) ([]byte, error) {
 	ws.WriteMessage(messageType, data)
 
@@ -371,7 +374,7 @@ func (ws *WSStat) SendMessage(messageType int, data []byte) ([]byte, error) {
 }
 
 // SendMessageJSON sends a message through the WebSocket connection and measures the round-trip time.
-// Sets result times: MessageRoundTrip, FirstMessageResponse
+// Sets result times: MessageReads, MessageWrites
 func (ws *WSStat) SendMessageJSON(v interface{}) (interface{}, error) {
 	ws.WriteMessageJSON(v)
 
@@ -385,7 +388,7 @@ func (ws *WSStat) SendMessageJSON(v interface{}) (interface{}, error) {
 }
 
 // SendPing sends a ping message through the WebSocket connection and measures the round-trip time until the pong response.
-// Sets result times: MessageRoundTrip, FirstMessageResponse
+// Sets result times: MessageReads, MessageWrites
 func (ws *WSStat) SendPing() error {
 	pongReceived := make(chan bool)
 	timeout := time.After(5 * time.Second)
@@ -395,12 +398,12 @@ func (ws *WSStat) SendPing() error {
 		return nil
 	})
 
-	ws.timings.MessageWrites = append(ws.timings.MessageWrites, time.Now())
+	ws.timings.messageWrites = append(ws.timings.messageWrites, time.Now())
 	ws.writeChan <- &wsWrite{messageType: websocket.PingMessage}
 
 	select {
 	case <-pongReceived:
-		ws.timings.MessageReads = append(ws.timings.MessageReads, time.Now())
+		ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
 	case <-timeout:
 		return errors.New("pong response timeout")
 	}
@@ -577,7 +580,7 @@ func hostPort(u url.URL) (string, string) {
 }
 
 // newDialer initializes and returns a websocket.Dialer with customized dial functions to measure the connection phases.
-// Sets timings: DNSLookupDone, TCPConnected, TLSHandshakeDone.
+// Sets timings: dnsLookupDone, tcpConnected, tlsHandshakeDone.
 func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 	return &websocket.Dialer{
 		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -587,14 +590,14 @@ func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 			if err != nil {
 				return nil, err
 			}
-			timings.DNSLookupDone = time.Now()
+			timings.dnsLookupDone = time.Now()
 
 			// Measure TCP connection time
 			conn, err := net.DialTimeout(network, net.JoinHostPort(addrs[0], port), defaultTimeout)
 			if err != nil {
 				return nil, err
 			}
-			timings.TCPConnected = time.Now()
+			timings.tcpConnected = time.Now()
 
 			return conn, nil
 		},
@@ -606,7 +609,7 @@ func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 			if err != nil {
 				return nil, err
 			}
-			timings.DNSLookupDone = time.Now()
+			timings.dnsLookupDone = time.Now()
 
 			// Measure TCP connection time
 			dialer := &net.Dialer{}
@@ -614,7 +617,7 @@ func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 			if err != nil {
 				return nil, err
 			}
-			timings.TCPConnected = time.Now()
+			timings.tcpConnected = time.Now()
 
 			// Set up TLS configuration
 			tlsConfig := customTLSConfig
@@ -631,7 +634,7 @@ func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 				netConn.Close()
 				return nil, err
 			}
-			timings.TLSHandshakeDone = time.Now()
+			timings.tlsHandshakeDone = time.Now()
 			state := tlsConn.ConnectionState()
 			result.TLSState = &state
 
