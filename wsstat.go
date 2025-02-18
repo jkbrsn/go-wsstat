@@ -162,7 +162,6 @@ func (ws *WSStat) readPump() {
 		default:
 			ws.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			if messageType, p, err := ws.conn.ReadMessage(); err != nil {
-				// TODO: handle close/ping/pong?
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 					logger.Debug().Err(err).Msg("Unexpected close error")
 					// TODO: handle graceful shutdown on error
