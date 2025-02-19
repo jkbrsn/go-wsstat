@@ -240,7 +240,7 @@ func validateDialResult(testStart time.Time, ws *WSStat, url *url.URL, msg strin
 
 // Validation of WSStat results after ReadMessage or SendMessage have been called
 func validateSendResult(ws *WSStat, msg string, t *testing.T) {
-	assert.Greater(t, ws.Result.MessageRoundTrip, time.Duration(0), "Invalid MessageRoundTrip time in %s", msg)
+	assert.Greater(t, ws.Result.MessageRTT, time.Duration(0), "Invalid MessageRTT time in %s", msg)
 	assert.Greater(t, ws.Result.FirstMessageResponse, time.Duration(0), "Invalid FirstMessageResponse time in %s", msg)
 }
 

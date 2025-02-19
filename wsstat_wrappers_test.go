@@ -20,6 +20,23 @@ func TestMeasureLatency(t *testing.T) {
 	assert.Equal(t, msg, string(response))
 }
 
+func TestMeasureLatencyBurst(t *testing.T) {
+	var msgs = []string{
+		"msg 1",
+		"msg 2",
+		"msg 3",
+	}
+	result, responses, err := MeasureLatencyBurst(echoServerAddrWs, msgs, http.Header{})
+
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, result.FirstMessageResponse, time.Duration(0))
+	assert.Greater(t, result.MessageRTT, time.Duration(0))
+	assert.Greater(t, result.TotalTime, time.Duration(0))
+	require.NotNil(t, responses)
+	assert.Equal(t, msgs, responses)
+}
+
 func TestMeasureLatencyJSON(t *testing.T) {
 	message := struct {
 		Text string `json:"text"`
@@ -44,6 +61,6 @@ func TestMeasureLatencyPing(t *testing.T) {
 	assert.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Greater(t, result.TotalTime, time.Duration(0))
-	assert.Greater(t, result.MessageRoundTrip, time.Duration(0))
+	assert.Greater(t, result.MessageRTT, time.Duration(0))
 	assert.Greater(t, result.FirstMessageResponse, time.Duration(0))
 }

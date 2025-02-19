@@ -58,11 +58,11 @@ type Result struct {
 	TLSState        *tls.ConnectionState // State of the TLS connection
 
 	// Duration of each phase of the connection
-	DNSLookup        time.Duration // Time to resolve DNS
-	TCPConnection    time.Duration // TCP connection establishment time
-	TLSHandshake     time.Duration // Time to perform TLS handshake
-	WSHandshake      time.Duration // Time to perform WebSocket handshake
-	MessageRoundTrip time.Duration // Time to send message and receive response
+	DNSLookup     time.Duration // Time to resolve DNS
+	TCPConnection time.Duration // TCP connection establishment time
+	TLSHandshake  time.Duration // Time to perform TLS handshake
+	WSHandshake   time.Duration // Time to perform WebSocket handshake
+	MessageRTT    time.Duration // Time to send message and receive response
 
 	// Cumulative durations over the connection timeline
 	DNSLookupDone        time.Duration // Time to resolve DNS (might be redundant with DNSLookup)
@@ -117,17 +117,21 @@ type wsTimings struct {
 // calculateResult calculates the durations of each phase of the WebSocket connection based
 // on the current state of the WSStat timings.
 func (ws *WSStat) calculateResult() {
-	// Calculate durations
+	// Calculate durations per phase
 	ws.Result.DNSLookup = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
 	ws.Result.TCPConnection = ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone)
 	ws.Result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
 	ws.Result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
-	// TODO: this assumes exatly one read and write has occured, add support for multiple reads and writes
-	if len(ws.timings.messageReads) != 1 && len(ws.timings.messageWrites) != 1 {
-		logger.Debug().Msg("Multiple reads and writes are not supported yet")
-		ws.Result.MessageRoundTrip = 0
+	if len(ws.timings.messageReads) < 1 && len(ws.timings.messageWrites) < 1 ||
+		len(ws.timings.messageReads) != len(ws.timings.messageWrites) {
+		ws.Result.MessageRTT = 0
 	} else {
-		ws.Result.MessageRoundTrip = ws.timings.messageReads[0].Sub(ws.timings.messageWrites[0])
+		var meanMessageRTT time.Duration
+		for i, readTime := range ws.timings.messageReads {
+			writeTime := ws.timings.messageWrites[i]
+			meanMessageRTT += readTime.Sub(writeTime)
+		}
+		ws.Result.MessageRTT = meanMessageRTT / time.Duration(len(ws.timings.messageReads))
 	}
 
 	// Calculate cumulative durations
@@ -135,12 +139,12 @@ func (ws *WSStat) calculateResult() {
 	ws.Result.TCPConnected = ws.timings.tcpConnected.Sub(ws.timings.dialStart)
 	ws.Result.TLSHandshakeDone = ws.timings.tlsHandshakeDone.Sub(ws.timings.dialStart)
 	ws.Result.WSHandshakeDone = ws.timings.wsHandshakeDone.Sub(ws.timings.dialStart)
-	if len(ws.timings.messageReads) != 1 {
-		logger.Debug().Msg("Multiple reads are not supported yet")
+	if len(ws.timings.messageReads) < 1 {
 		ws.Result.FirstMessageResponse = 0
 	} else {
 		ws.Result.FirstMessageResponse = ws.timings.messageReads[0].Sub(ws.timings.dialStart)
 	}
+
 	// If the WSStat is not yet closed, set the total time to the current time
 	if ws.timings.closeDone.IsZero() {
 		ws.Result.TotalTime = time.Since(ws.timings.dialStart)
@@ -325,7 +329,7 @@ func (ws *WSStat) ExtractResult() Result {
 		TCPConnection:        ws.Result.TCPConnection,
 		TLSHandshake:         ws.Result.TLSHandshake,
 		WSHandshake:          ws.Result.WSHandshake,
-		MessageRoundTrip:     ws.Result.MessageRoundTrip,
+		MessageRTT:           ws.Result.MessageRTT,
 		DNSLookupDone:        ws.Result.DNSLookupDone,
 		TCPConnected:         ws.Result.TCPConnected,
 		TLSHandshakeDone:     ws.Result.TLSHandshakeDone,
@@ -445,11 +449,11 @@ func (ws *WSStat) WriteMessageJSON(v interface{}) {
 // durations returns a map of the time.Duration members of Result.
 func (r *Result) durations() map[string]time.Duration {
 	return map[string]time.Duration{
-		"DNSLookup":        r.DNSLookup,
-		"TCPConnection":    r.TCPConnection,
-		"TLSHandshake":     r.TLSHandshake,
-		"WSHandshake":      r.WSHandshake,
-		"MessageRoundTrip": r.MessageRoundTrip,
+		"DNSLookup":     r.DNSLookup,
+		"TCPConnection": r.TCPConnection,
+		"TLSHandshake":  r.TLSHandshake,
+		"WSHandshake":   r.WSHandshake,
+		"MessageRTT":    r.MessageRTT,
 
 		"DNSLookupDone":        r.DNSLookupDone,
 		"TCPConnected":         r.TCPConnected,
@@ -550,7 +554,7 @@ func (r Result) Format(s fmt.State, verb rune) {
 			fmt.Fprintf(&buf, "WS handshake:   %4d ms\n",
 				int(r.WSHandshake/time.Millisecond))
 			fmt.Fprintf(&buf, "Msg round trip: %4d ms\n\n",
-				int(r.MessageRoundTrip/time.Millisecond))
+				int(r.MessageRTT/time.Millisecond))
 
 			fmt.Fprintf(&buf, "Name lookup done:   %4d ms\n",
 				int(r.DNSLookupDone/time.Millisecond))
