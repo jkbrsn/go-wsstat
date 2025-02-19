@@ -14,6 +14,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -47,173 +49,169 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestMeasureLatency(t *testing.T) {
-	msg := "Hello, world!"
-	result, response, err := MeasureLatency(echoServerAddrWs, msg, http.Header{})
+func TestNew(t *testing.T) {
+	ws := New()
+	defer ws.Close()
 
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.TotalTime <= 0 {
-		t.Errorf("Invalid total time: %v", result.TotalTime)
-	}
-	if len(response) == 0 {
-		t.Errorf("Empty response")
-	}
-	if string(response) != msg {
-		t.Errorf("Unexpected response: %s", response)
-	}
-}
-
-func TestMeasureLatencyJSON(t *testing.T) {
-	message := struct {
-		Text string `json:"text"`
-	}{
-		Text: "Hello, world!",
-	}
-	result, response, err := MeasureLatencyJSON(echoServerAddrWs, message, http.Header{})
-
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.TotalTime <= 0 {
-		t.Errorf("Invalid total time: %v", result.TotalTime)
-	}
-	if response == nil {
-		t.Errorf("Empty response")
-	}
-	responseMap, ok := response.(map[string]interface{})
-	if !ok {
-		t.Errorf("Response is not a map")
-		return
-	}
-	if responseMap["text"] != message.Text {
-		t.Errorf("Unexpected response: %s", responseMap)
-	}
-}
-
-func TestMeasureLatencyPing(t *testing.T) {
-	result, err := MeasureLatencyPing(echoServerAddrWs, http.Header{})
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if result.TotalTime <= 0 {
-		t.Errorf("Invalid total time: %v", result.TotalTime)
-	}
-	if result.MessageRoundTrip <= 0 {
-		t.Errorf("Invalid message round trip time: %v", result.MessageRoundTrip)
-	}
-	if result.FirstMessageResponse <= 0 {
-		t.Errorf("Invalid first message response time: %v", result.FirstMessageResponse)
-	}
-}
-
-func TestNewWSStat(t *testing.T) {
-	ws := NewWSStat()
-
-	if ws.dialer == nil {
-		t.Error("Expected non-nil dialer")
-	}
-	if ws.Result == nil {
-		t.Error("Expected non-nil result")
-	}
+	assert.NotNil(t, ws)
+	assert.NotNil(t, ws.dialer)
+	assert.NotNil(t, ws.result)
+	assert.NotNil(t, ws.timings)
+	assert.NotNil(t, ws.readChan)
+	assert.NotNil(t, ws.writeChan)
+	assert.NotNil(t, ws.ctx)
+	assert.NotNil(t, ws.cancel)
 }
 
 func TestDial(t *testing.T) {
-	ws := NewWSStat()
+	testStart := time.Now()
+	ws := New()
+	defer ws.Close()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	assert.NoError(t, err)
+	assert.NotNil(t, ws.conn)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 }
 
 func TestWriteReadClose(t *testing.T) {
-	ws := NewWSStat()
+	testStart := time.Now()
+	ws := New()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	assert.NoError(t, err)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := []byte("Hello, world!")
-	startTime, err := ws.WriteMessage(websocket.TextMessage, message)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	_, receivedMessage, err := ws.ReadMessage(startTime)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if string(receivedMessage) != string(message) {
-		t.Errorf("Received message does not match sent message")
-	}
-	validateSendResult(ws, getFunctionName(), t)
+	ws.WriteMessage(websocket.TextMessage, message)
+	_, receivedMessage, err := ws.ReadMessage()
+	assert.NoError(t, err)
+	assert.Equal(t, message, receivedMessage, "Received message does not match sent message")
 
-	err = ws.CloseConn()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateCloseResult(ws, getFunctionName(), t)
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
+	validateSendResult(ws, getFunctionName(), t)
 }
 
-func TestSendMessage(t *testing.T) {
-	ws := NewWSStat()
+func TestBufferedReadWrite(t *testing.T) {
+	testStart := time.Now()
+
+	t.Run("No reads", func(t *testing.T) {
+		ws := New()
+		defer func() {
+			ws.Close()
+			validateCloseResult(ws, getFunctionName(), t)
+		}()
+
+		err := ws.Dial(echoServerAddrWs, http.Header{})
+		assert.NoError(t, err)
+		validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
+
+		message := []byte("Hello, world!")
+		ws.WriteMessage(websocket.TextMessage, message)
+		ws.WriteMessage(websocket.TextMessage, message)
+		ws.WriteMessage(websocket.TextMessage, message)
+		time.Sleep(10 * time.Millisecond) // Wait for messages to be sent
+
+		result := ws.ExtractResult()
+		assert.NotNil(t, result)
+		assert.Greater(t, result.TotalTime, time.Duration(0), "Exepcted valid TotalTime despite no reads")
+		assert.Equal(t, time.Duration(0), result.MessageRTT, "Expected 0 MessageRTT with no reads")
+	})
+
+	t.Run("Writes and reads", func(t *testing.T) {
+		ws := New()
+		defer func() {
+			ws.Close()
+			validateCloseResult(ws, getFunctionName(), t)
+		}()
+
+		err := ws.Dial(echoServerAddrWs, http.Header{})
+		assert.NoError(t, err)
+		validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
+
+		message := []byte("Hello, world!")
+		messageCount := 75
+		for range make([]struct{}, messageCount) {
+			ws.WriteMessage(websocket.TextMessage, message)
+		}
+		time.Sleep(25 * time.Millisecond) // Wait for messages to be sent
+
+		result := ws.ExtractResult()
+		assert.NotNil(t, result)
+		assert.Greater(t, result.TotalTime, time.Duration(0), "Exepcted valid TotalTime despite no reads")
+		assert.Equal(t, time.Duration(0), result.MessageRTT, "Expected 0 MessageRTT with no reads")
+		assert.Zero(t, result.MessageCount, "Expected 0 MessageCount with no reads")
+
+		for i := 0; i < messageCount; i++ {
+			_, receivedMessage, err := ws.ReadMessage()
+			assert.NoError(t, err)
+			assert.Equal(t, message, receivedMessage, "Received message does not match sent message")
+		}
+
+		result = ws.ExtractResult()
+		assert.NotNil(t, result)
+		assert.Greater(t, result.TotalTime, time.Duration(0), "Exepcted valid TotalTime")
+		assert.Greater(t, result.MessageRTT, time.Duration(0), "Exepcted valid MessageRTT")
+		assert.Equal(t, messageCount, result.MessageCount, "Expected correct MessageCount")
+	})
+}
+
+func TestOneHitMessage(t *testing.T) {
+	testStart := time.Now()
+	ws := New()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	assert.NoError(t, err)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := []byte("Hello, world!")
-	response, err := ws.SendMessage(websocket.TextMessage, message)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if !bytes.Equal(response, message) {
-		t.Errorf("Received message does not match sent message")
-	}
-	validateSendResult(ws, getFunctionName(), t)
+	response, err := ws.OneHitMessage(websocket.TextMessage, message)
+	assert.NoError(t, err)
+	assert.Equal(t, message, response, "Received message does not match sent message")
 
-	err = ws.CloseConn()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateCloseResult(ws, getFunctionName(), t)
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
+	validateSendResult(ws, getFunctionName(), t)
 }
 
-func TestSendMessageJSON(t *testing.T) {
-	ws := NewWSStat()
+func TestOneHitMessageJSON(t *testing.T) {
+	testStart := time.Now()
+	ws := New()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
 	err := ws.Dial(echoServerAddrWs, http.Header{})
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateDialResult(ws, echoServerAddrWs, getFunctionName(), t)
+	assert.NoError(t, err)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 
 	message := struct {
 		Text string `json:"text"`
 	}{
 		Text: "Hello, world!",
 	}
-	response, err := ws.SendMessageJSON(message)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
+	response, err := ws.OneHitMessageJSON(message)
+	assert.NoError(t, err)
 	responseMap, ok := response.(map[string]interface{})
-	if !ok {
-		t.Errorf("Response is not a map")
-		return
-	}
-	if responseMap["text"] != message.Text {
-		t.Errorf("Unexpected response: %s", responseMap)
-	}
-	validateSendResult(ws, getFunctionName(), t)
+	require.True(t, ok, "Response is not a map")
+	assert.Equal(t, message.Text, responseMap["text"])
 
-	err = ws.CloseConn()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	validateCloseResult(ws, getFunctionName(), t)
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
+	validateSendResult(ws, getFunctionName(), t)
 }
 
 func TestLoggerFunctionality(t *testing.T) {
@@ -224,25 +222,19 @@ func TestLoggerFunctionality(t *testing.T) {
 
 	// Test log level Info
 	logger.Info().Msg("info message")
-	if !bytes.Contains(buf.Bytes(), []byte("info message")) {
-		t.Error("Expected info level log")
-	}
+	assert.True(t, bytes.Contains(buf.Bytes(), []byte("info message")), "Expected info level log")
 	buf.Reset() // Clear buffer
 
 	// Test log level Debug
 	SetLogLevel(zerolog.DebugLevel)
 	logger.Debug().Msg("debug message")
-	if !bytes.Contains(buf.Bytes(), []byte("debug message")) {
-		t.Error("Expected debug level log")
-	}
+	assert.True(t, bytes.Contains(buf.Bytes(), []byte("debug message")), "Expected debug level log")
 	buf.Reset() // Clear buffer
 
 	// Return log level to Info and confirm debug messages are not logged
 	SetLogLevel(zerolog.InfoLevel)
 	logger.Debug().Msg("another debug message")
-	if bytes.Contains(buf.Bytes(), []byte("another debug message")) {
-		t.Error("Did not expect debug level log")
-	}
+	assert.False(t, bytes.Contains(buf.Bytes(), []byte("another debug message")), "Did not expect debug level log")
 
 	// Restore original logger to avoid affecting other tests
 	logger = zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().Timestamp().Logger()
@@ -293,51 +285,36 @@ func startEchoServer(addr string) {
 }
 
 // Validation of WSStat results after Dial has been called
-func validateDialResult(ws *WSStat, url *url.URL, msg string, t *testing.T) {
-	if ws.Result.DNSLookup <= 0 {
-		t.Errorf("Invalid DNSLookup time in %s", msg)
-	}
-	if ws.Result.DNSLookupDone <= 0 {
-		t.Errorf("Invalid DNSLookupDone time in %s", msg)
-	}
-	if ws.Result.TCPConnection <= 0 {
-		t.Errorf("Invalid TCPConnection time in %s", msg)
-	}
-	if ws.Result.TCPConnected <= 0 {
-		t.Errorf("Invalid TCPConnected time in %s", msg)
-	}
+func validateDialResult(testStart time.Time, ws *WSStat, url *url.URL, msg string, t *testing.T) {
+	assert.Greater(t,
+		ws.timings.dnsLookupDone.Sub(testStart),
+		time.Duration(0),
+		"Invalid DNSLookupDone time in %s", msg)
+	assert.Greater(t,
+		ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone),
+		time.Duration(0),
+		"Invalid TCPConnected time in %s", msg)
+
 	if strings.Contains(url.String(), "wss://") {
-		if ws.Result.TLSHandshake <= 0 {
-			t.Errorf("Invalid TLSHandshake time in %s", msg)
-		}
-		if ws.Result.TLSHandshakeDone <= 0 {
-			t.Errorf("Invalid TLSHandshakeDone time in %s", msg)
-		}
+		assert.Greater(t,
+			ws.timings.tlsHandshakeDone.Sub(ws.timings.dnsLookupDone),
+			time.Duration(0),
+			"Invalid TLSHandshakeDone time in %s", msg)
 	}
-	if ws.Result.WSHandshake <= 0 {
-		t.Errorf("Invalid WSHandshake time in %s", msg)
-	}
-	if ws.Result.WSHandshakeDone <= 0 {
-		t.Errorf("Invalid WSHandshakeDone time in %s", msg)
-	}
+
+	assert.Greater(t,
+		ws.timings.wsHandshakeDone.Sub(ws.timings.tcpConnected),
+		time.Duration(0),
+		"Invalid WSHandshakeDone time in %s", msg)
 }
 
 // Validation of WSStat results after ReadMessage or SendMessage have been called
 func validateSendResult(ws *WSStat, msg string, t *testing.T) {
-	if ws.Result.MessageRoundTrip <= 0 {
-		t.Errorf("Invalid MessageRoundTrip time in %s", msg)
-	}
-	if ws.Result.FirstMessageResponse <= 0 {
-		t.Errorf("Invalid FirstMessageResponse time in %s", msg)
-	}
+	assert.Greater(t, ws.result.MessageRTT, time.Duration(0), "Invalid MessageRTT time in %s", msg)
+	assert.Greater(t, ws.result.FirstMessageResponse, time.Duration(0), "Invalid FirstMessageResponse time in %s", msg)
 }
 
 // Validation of WSStat results after CloseConn has been called
 func validateCloseResult(ws *WSStat, msg string, t *testing.T) {
-	if ws.Result.ConnectionClose <= 0 {
-		t.Errorf("Invalid ConnectionClose time in %s", msg)
-	}
-	if ws.Result.TotalTime <= 0 {
-		t.Errorf("Invalid TotalTime in %s", msg)
-	}
+	assert.Greater(t, ws.result.TotalTime, time.Duration(0), "Invalid TotalTime time in %s", msg)
 }
