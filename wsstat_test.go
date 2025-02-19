@@ -92,6 +92,70 @@ func TestWriteReadClose(t *testing.T) {
 	validateSendResult(ws, getFunctionName(), t)
 }
 
+func TestBufferedReadWrite(t *testing.T) {
+	testStart := time.Now()
+
+	t.Run("No reads", func(t *testing.T) {
+		ws := New()
+		defer func() {
+			ws.Close()
+			validateCloseResult(ws, getFunctionName(), t)
+		}()
+
+		err := ws.Dial(echoServerAddrWs, http.Header{})
+		assert.NoError(t, err)
+		validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
+
+		message := []byte("Hello, world!")
+		ws.WriteMessage(websocket.TextMessage, message)
+		ws.WriteMessage(websocket.TextMessage, message)
+		ws.WriteMessage(websocket.TextMessage, message)
+		time.Sleep(10 * time.Millisecond) // Wait for messages to be sent
+
+		result := ws.ExtractResult()
+		assert.NotNil(t, result)
+		assert.Greater(t, result.TotalTime, time.Duration(0), "Exepcted valid TotalTime despite no reads")
+		assert.Equal(t, time.Duration(0), result.MessageRTT, "Expected 0 MessageRTT with no reads")
+	})
+
+	t.Run("Writes and reads", func(t *testing.T) {
+		ws := New()
+		defer func() {
+			ws.Close()
+			validateCloseResult(ws, getFunctionName(), t)
+		}()
+
+		err := ws.Dial(echoServerAddrWs, http.Header{})
+		assert.NoError(t, err)
+		validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
+
+		message := []byte("Hello, world!")
+		messageCount := 75
+		for range make([]struct{}, messageCount) {
+			ws.WriteMessage(websocket.TextMessage, message)
+		}
+		time.Sleep(25 * time.Millisecond) // Wait for messages to be sent
+
+		result := ws.ExtractResult()
+		assert.NotNil(t, result)
+		assert.Greater(t, result.TotalTime, time.Duration(0), "Exepcted valid TotalTime despite no reads")
+		assert.Equal(t, time.Duration(0), result.MessageRTT, "Expected 0 MessageRTT with no reads")
+		assert.Zero(t, result.MessageCount, "Expected 0 MessageCount with no reads")
+
+		for i := 0; i < messageCount; i++ {
+			_, receivedMessage, err := ws.ReadMessage()
+			assert.NoError(t, err)
+			assert.Equal(t, message, receivedMessage, "Received message does not match sent message")
+		}
+
+		result = ws.ExtractResult()
+		assert.NotNil(t, result)
+		assert.Greater(t, result.TotalTime, time.Duration(0), "Exepcted valid TotalTime")
+		assert.Greater(t, result.MessageRTT, time.Duration(0), "Exepcted valid MessageRTT")
+		assert.Equal(t, messageCount, result.MessageCount, "Expected correct MessageCount")
+	})
+}
+
 func TestOneHitMessage(t *testing.T) {
 	testStart := time.Now()
 	ws := New()

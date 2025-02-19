@@ -33,6 +33,9 @@ var (
 
 	// Stores optional user-provided TLS configuration
 	customTLSConfig *tls.Config = nil
+
+	// Sets the size of the read and write channel buffers
+	chanBufferSize = 8
 )
 
 // CertificateDetails holds details regarding a certificate.
@@ -56,6 +59,7 @@ type Result struct {
 	RequestHeaders  http.Header          // Headers of the initial request
 	ResponseHeaders http.Header          // Headers of the response
 	TLSState        *tls.ConnectionState // State of the TLS connection
+	MessageCount    int                  // Number of messages sent and received
 
 	// Duration of each phase of the connection
 	DNSLookup     time.Duration // Time to resolve DNS
@@ -126,6 +130,7 @@ func (ws *WSStat) calculateResult() {
 	if len(ws.timings.messageReads) < 1 && len(ws.timings.messageWrites) < 1 ||
 		len(ws.timings.messageReads) != len(ws.timings.messageWrites) {
 		ws.Result.MessageRTT = 0
+		ws.Result.MessageCount = 0
 	} else {
 		var meanMessageRTT time.Duration
 		for i, readTime := range ws.timings.messageReads {
@@ -133,6 +138,7 @@ func (ws *WSStat) calculateResult() {
 			meanMessageRTT += readTime.Sub(writeTime)
 		}
 		ws.Result.MessageRTT = meanMessageRTT / time.Duration(len(ws.timings.messageReads))
+		ws.Result.MessageCount = len(ws.timings.messageReads)
 	}
 
 	// Calculate cumulative durations
@@ -316,25 +322,7 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 func (ws *WSStat) ExtractResult() Result {
 	ws.calculateResult()
 
-	resultCopy := Result{
-		IPs:                  ws.Result.IPs,
-		URL:                  ws.Result.URL,
-		RequestHeaders:       ws.Result.RequestHeaders,
-		ResponseHeaders:      ws.Result.ResponseHeaders,
-		TLSState:             ws.Result.TLSState,
-		DNSLookup:            ws.Result.DNSLookup,
-		TCPConnection:        ws.Result.TCPConnection,
-		TLSHandshake:         ws.Result.TLSHandshake,
-		WSHandshake:          ws.Result.WSHandshake,
-		MessageRTT:           ws.Result.MessageRTT,
-		DNSLookupDone:        ws.Result.DNSLookupDone,
-		TCPConnected:         ws.Result.TCPConnected,
-		TLSHandshakeDone:     ws.Result.TLSHandshakeDone,
-		WSHandshakeDone:      ws.Result.WSHandshakeDone,
-		FirstMessageResponse: ws.Result.FirstMessageResponse,
-		TotalTime:            ws.Result.TotalTime,
-	}
-
+	resultCopy := *ws.Result
 	return resultCopy
 }
 
@@ -679,7 +667,8 @@ func newDialer(result *Result, timings *wsTimings) *websocket.Dialer {
 	}
 }
 
-// New creates and returns a new WSStat instance.
+// New creates and returns a new WSStat instance. To adjust the size of the read and write channel
+// buffers, call SetChanBufferSize before calling New().
 func New() *WSStat {
 	result := &Result{}
 	timings := &wsTimings{}
@@ -692,11 +681,16 @@ func New() *WSStat {
 		Result:    result,
 		ctx:       ctx,
 		cancel:    cancel,
-		readChan:  make(chan *wsRead, 16),
-		writeChan: make(chan *wsWrite, 16),
+		readChan:  make(chan *wsRead, chanBufferSize),
+		writeChan: make(chan *wsWrite, chanBufferSize),
 	}
 
 	return ws
+}
+
+// SetBufferSize sets the size of the read and write channel buffers.
+func SetChanBufferSize(size int) {
+	chanBufferSize = size
 }
 
 // SetCustomTLSConfig allows users to provide their own TLS configuration.
