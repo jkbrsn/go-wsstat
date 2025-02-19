@@ -42,7 +42,6 @@ func MeasureLatencyBurst(url *url.URL, msgs []string, customHeaders http.Header)
 		return Result{}, nil, err
 	}
 
-	// TODO: exchange for go-taskman implementation when available
 	for _, msg := range msgs {
 		ws.WriteMessage(websocket.TextMessage, []byte(msg))
 	}
