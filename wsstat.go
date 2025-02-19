@@ -325,11 +325,11 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 }
 
 // ExtractResult calculate the current results and returns a copy of the Result object.
-func (ws *WSStat) ExtractResult() Result {
+func (ws *WSStat) ExtractResult() *Result {
 	ws.calculateResult()
 
 	resultCopy := *ws.Result
-	return resultCopy
+	return &resultCopy
 }
 
 // OneHitMessage sends a single message through the WebSocket connection, and waits for
