@@ -484,7 +484,7 @@ func (r *Result) CertificateDetails() []CertificateDetails {
 }
 
 // Format formats the time.Duration members of Result.
-func (r Result) Format(s fmt.State, verb rune) {
+func (r *Result) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':
 		if s.Flag('+') {
