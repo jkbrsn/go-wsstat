@@ -116,6 +116,7 @@ type wsTimings struct {
 
 // calculateResult calculates the durations of each phase of the WebSocket connection based
 // on the current state of the WSStat timings.
+// Note: if there haven't been as many message reads as writes, MessageRTT will be 0.
 func (ws *WSStat) calculateResult() {
 	// Calculate durations per phase
 	ws.Result.DNSLookup = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
@@ -167,10 +168,6 @@ func (ws *WSStat) readPump() {
 		default:
 			ws.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			if messageType, p, err := ws.conn.ReadMessage(); err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-					logger.Debug().Err(err).Msg("Unexpected close error")
-					// TODO: handle graceful shutdown on error
-				}
 				ws.readChan <- &wsRead{err: err, messageType: messageType}
 				return
 			} else {
@@ -398,11 +395,15 @@ func (ws *WSStat) PingPong() error {
 	return nil
 }
 
-// ReadMessage reads a message from the WebSocket connection and measures the round-trip time.
+// ReadMessage reads a message from the WebSocket connection and measures the round-trip time. If
+// an error occurs, it will be returned.
 // Sets time: MessageReads
 func (ws *WSStat) ReadMessage() (int, []byte, error) {
 	msg := <-ws.readChan
 	if msg.err != nil {
+		if websocket.IsUnexpectedCloseError(msg.err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+			return msg.messageType, nil, fmt.Errorf("unexpected close error: %v", msg.err)
+		}
 		return msg.messageType, nil, msg.err
 	}
 
