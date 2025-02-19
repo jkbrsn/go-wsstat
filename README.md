@@ -15,13 +15,15 @@ go get github.com/jakobilobi/go-wsstat
 
 ## Usage
 
-The [_example/main.go](./_example/main.go) program demonstrates how to use the `go-wsstat` package to trace a WebSocket connection.
+The [_example/main.go](./_example/main.go) program demonstrates two ways to use the `go-wsstat` package to trace a WebSocket connection. The example only executes one-hit message reads and writes, but WSStat also support operating on a continuous connection.
 
 Run the example:
 
 ```bash
 go run _example/main.go <a WebSocket URL>
 ```
+
+### Testing the package
 
 Run the tests:
 
