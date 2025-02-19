@@ -55,6 +55,36 @@ func TestMeasureLatencyJSON(t *testing.T) {
 	assert.Equal(t, message.Text, responseMap["text"])
 }
 
+func TestMeasureLatencyJSONBurst(t *testing.T) {
+	messages := []struct {
+		Text string `json:"text"`
+	}{
+		{Text: "msg 1"},
+		{Text: "msg 2"},
+		{Text: "msg 3"},
+	}
+
+	// Convert messages to a slice of interface{}
+	var interfaceMessages []interface{}
+	for _, msg := range messages {
+		interfaceMessages = append(interfaceMessages, msg)
+	}
+
+	result, responses, err := MeasureLatencyJSONBurst(echoServerAddrWs, interfaceMessages, http.Header{})
+
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, result.FirstMessageResponse, time.Duration(0))
+	assert.Greater(t, result.MessageRTT, time.Duration(0))
+	assert.Greater(t, result.TotalTime, time.Duration(0))
+	require.NotNil(t, responses)
+	for i, response := range responses {
+		responseMap, ok := response.(map[string]interface{})
+		require.True(t, ok, "Response is not a map")
+		assert.Equal(t, messages[i].Text, responseMap["text"])
+	}
+}
+
 func TestMeasureLatencyPing(t *testing.T) {
 	result, err := MeasureLatencyPing(echoServerAddrWs, http.Header{})
 
