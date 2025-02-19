@@ -127,6 +127,12 @@ func (ws *WSStat) calculateResult() {
 	ws.Result.TCPConnection = ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone)
 	ws.Result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
 	ws.Result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
+
+	// Note on MessageRTT calculations:
+	// Since there is no guarantee that the time of a read corresponds to the time of the write
+	// with the same index, we calculate only the mean round-trip time for all messages. As the
+	// mean is calculated over all of the measurements, the result will be the same even if the
+	// reads and writes are not in the same order as addition is commutative and associative.
 	if len(ws.timings.messageReads) < 1 && len(ws.timings.messageWrites) < 1 ||
 		len(ws.timings.messageReads) != len(ws.timings.messageWrites) {
 		ws.Result.MessageRTT = 0
