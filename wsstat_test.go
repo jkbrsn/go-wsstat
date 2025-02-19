@@ -55,7 +55,7 @@ func TestNew(t *testing.T) {
 
 	assert.NotNil(t, ws)
 	assert.NotNil(t, ws.dialer)
-	assert.NotNil(t, ws.Result)
+	assert.NotNil(t, ws.result)
 }
 
 func TestDial(t *testing.T) {
@@ -304,11 +304,11 @@ func validateDialResult(testStart time.Time, ws *WSStat, url *url.URL, msg strin
 
 // Validation of WSStat results after ReadMessage or SendMessage have been called
 func validateSendResult(ws *WSStat, msg string, t *testing.T) {
-	assert.Greater(t, ws.Result.MessageRTT, time.Duration(0), "Invalid MessageRTT time in %s", msg)
-	assert.Greater(t, ws.Result.FirstMessageResponse, time.Duration(0), "Invalid FirstMessageResponse time in %s", msg)
+	assert.Greater(t, ws.result.MessageRTT, time.Duration(0), "Invalid MessageRTT time in %s", msg)
+	assert.Greater(t, ws.result.FirstMessageResponse, time.Duration(0), "Invalid FirstMessageResponse time in %s", msg)
 }
 
 // Validation of WSStat results after CloseConn has been called
 func validateCloseResult(ws *WSStat, msg string, t *testing.T) {
-	assert.Greater(t, ws.Result.TotalTime, time.Duration(0), "Invalid TotalTime time in %s", msg)
+	assert.Greater(t, ws.result.TotalTime, time.Duration(0), "Invalid TotalTime time in %s", msg)
 }

@@ -82,7 +82,7 @@ type WSStat struct {
 	conn    *websocket.Conn
 	dialer  *websocket.Dialer
 	timings *wsTimings
-	Result  *Result
+	result  *Result
 
 	readChan  chan *wsRead
 	writeChan chan *wsWrite
@@ -123,10 +123,10 @@ type wsTimings struct {
 // Note: if there haven't been as many message reads as writes, MessageRTT will be 0.
 func (ws *WSStat) calculateResult() {
 	// Calculate durations per phase
-	ws.Result.DNSLookup = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
-	ws.Result.TCPConnection = ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone)
-	ws.Result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
-	ws.Result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
+	ws.result.DNSLookup = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
+	ws.result.TCPConnection = ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone)
+	ws.result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
+	ws.result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
 
 	// Note on MessageRTT calculations:
 	// Since there is no guarantee that the time of a read corresponds to the time of the write
@@ -135,34 +135,34 @@ func (ws *WSStat) calculateResult() {
 	// reads and writes are not in the same order as addition is commutative and associative.
 	if len(ws.timings.messageReads) < 1 && len(ws.timings.messageWrites) < 1 ||
 		len(ws.timings.messageReads) != len(ws.timings.messageWrites) {
-		ws.Result.MessageRTT = 0
-		ws.Result.MessageCount = 0
+		ws.result.MessageRTT = 0
+		ws.result.MessageCount = 0
 	} else {
 		var meanMessageRTT time.Duration
 		for i, readTime := range ws.timings.messageReads {
 			writeTime := ws.timings.messageWrites[i]
 			meanMessageRTT += readTime.Sub(writeTime)
 		}
-		ws.Result.MessageRTT = meanMessageRTT / time.Duration(len(ws.timings.messageReads))
-		ws.Result.MessageCount = len(ws.timings.messageReads)
+		ws.result.MessageRTT = meanMessageRTT / time.Duration(len(ws.timings.messageReads))
+		ws.result.MessageCount = len(ws.timings.messageReads)
 	}
 
 	// Calculate cumulative durations
-	ws.Result.DNSLookupDone = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
-	ws.Result.TCPConnected = ws.timings.tcpConnected.Sub(ws.timings.dialStart)
-	ws.Result.TLSHandshakeDone = ws.timings.tlsHandshakeDone.Sub(ws.timings.dialStart)
-	ws.Result.WSHandshakeDone = ws.timings.wsHandshakeDone.Sub(ws.timings.dialStart)
+	ws.result.DNSLookupDone = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
+	ws.result.TCPConnected = ws.timings.tcpConnected.Sub(ws.timings.dialStart)
+	ws.result.TLSHandshakeDone = ws.timings.tlsHandshakeDone.Sub(ws.timings.dialStart)
+	ws.result.WSHandshakeDone = ws.timings.wsHandshakeDone.Sub(ws.timings.dialStart)
 	if len(ws.timings.messageReads) < 1 {
-		ws.Result.FirstMessageResponse = 0
+		ws.result.FirstMessageResponse = 0
 	} else {
-		ws.Result.FirstMessageResponse = ws.timings.messageReads[0].Sub(ws.timings.dialStart)
+		ws.result.FirstMessageResponse = ws.timings.messageReads[0].Sub(ws.timings.dialStart)
 	}
 
 	// If the WSStat is not yet closed, set the total time to the current time
 	if ws.timings.closeDone.IsZero() {
-		ws.Result.TotalTime = time.Since(ws.timings.dialStart)
+		ws.result.TotalTime = time.Since(ws.timings.dialStart)
 	} else {
-		ws.Result.TotalTime = ws.timings.closeDone.Sub(ws.timings.dialStart)
+		ws.result.TotalTime = ws.timings.closeDone.Sub(ws.timings.dialStart)
 	}
 }
 
@@ -272,7 +272,7 @@ func (ws *WSStat) Close() {
 // If required, specify custom headers to merge with the default headers.
 // Sets times: dialStart, wsHandshakeDone
 func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
-	ws.Result.URL = url
+	ws.result.URL = url
 	headers := http.Header{}
 	for name, values := range customHeaders {
 		headers.Add(name, strings.Join(values, ","))
@@ -300,9 +300,9 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	if err != nil {
 		return fmt.Errorf("failed to lookup IP: %v", err)
 	}
-	ws.Result.IPs = make([]string, len(ips))
+	ws.result.IPs = make([]string, len(ips))
 	for i, ip := range ips {
-		ws.Result.IPs[i] = ip.String()
+		ws.result.IPs[i] = ip.String()
 	}
 
 	// Capture request and response headers
@@ -318,8 +318,8 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	for name, values := range documentedDefaultHeaders {
 		headers[name] = values
 	}
-	ws.Result.RequestHeaders = headers
-	ws.Result.ResponseHeaders = resp.Header
+	ws.result.RequestHeaders = headers
+	ws.result.ResponseHeaders = resp.Header
 
 	return nil
 }
@@ -328,7 +328,7 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 func (ws *WSStat) ExtractResult() *Result {
 	ws.calculateResult()
 
-	resultCopy := *ws.Result
+	resultCopy := *ws.result
 	return &resultCopy
 }
 
@@ -684,7 +684,7 @@ func New() *WSStat {
 	ws := &WSStat{
 		dialer:    dialer,
 		timings:   timings,
-		Result:    result,
+		result:    result,
 		ctx:       ctx,
 		cancel:    cancel,
 		readChan:  make(chan *wsRead, chanBufferSize),

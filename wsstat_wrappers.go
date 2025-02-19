@@ -26,7 +26,7 @@ func MeasureLatency(url *url.URL, msg string, customHeaders http.Header) (*Resul
 	}
 	ws.Close()
 
-	return ws.Result, p, nil
+	return ws.result, p, nil
 }
 
 // MeasureLatencyBurst is a convenience wrapper around the WSStat instance, used to measure the
@@ -58,7 +58,7 @@ func MeasureLatencyBurst(url *url.URL, msgs []string, customHeaders http.Header)
 	}
 	ws.Close()
 
-	return ws.Result, responses, nil
+	return ws.result, responses, nil
 }
 
 // MeasureLatencyJSON is a wrapper around a one-hit usage of the WSStat instance. It establishes a
@@ -79,7 +79,7 @@ func MeasureLatencyJSON(url *url.URL, v interface{}, customHeaders http.Header) 
 	}
 	ws.Close()
 
-	return ws.Result, p, nil
+	return ws.result, p, nil
 }
 
 // MeasureLatencyJSONBurst is a convenience wrapper around the WSStat instance, used to measure the
@@ -111,7 +111,7 @@ func MeasureLatencyJSONBurst(url *url.URL, v []interface{}, customHeaders http.H
 	}
 	ws.Close()
 
-	return ws.Result, responses, nil
+	return ws.result, responses, nil
 }
 
 // MeasureLatencyPing is a wrapper around a one-hit usage of the WSStat instance. It establishes a
@@ -132,5 +132,5 @@ func MeasureLatencyPing(url *url.URL, customHeaders http.Header) (*Result, error
 	}
 	ws.Close()
 
-	return ws.Result, nil
+	return ws.result, nil
 }
