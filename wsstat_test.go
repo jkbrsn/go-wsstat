@@ -56,6 +56,11 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, ws)
 	assert.NotNil(t, ws.dialer)
 	assert.NotNil(t, ws.result)
+	assert.NotNil(t, ws.timings)
+	assert.NotNil(t, ws.readChan)
+	assert.NotNil(t, ws.writeChan)
+	assert.NotNil(t, ws.ctx)
+	assert.NotNil(t, ws.cancel)
 }
 
 func TestDial(t *testing.T) {
@@ -65,6 +70,7 @@ func TestDial(t *testing.T) {
 
 	err := ws.Dial(echoServerAddrWs, http.Header{})
 	assert.NoError(t, err)
+	assert.NotNil(t, ws.conn)
 	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
 }
 
