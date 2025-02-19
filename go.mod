@@ -1,6 +1,6 @@
 module github.com/jakobilobi/go-wsstat
 
-go 1.21
+go 1.23.2
 
 require (
 	github.com/gorilla/websocket v1.5.3
