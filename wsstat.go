@@ -125,8 +125,13 @@ func (ws *WSStat) calculateResult() {
 	// Calculate durations per phase
 	ws.result.DNSLookup = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
 	ws.result.TCPConnection = ws.timings.tcpConnected.Sub(ws.timings.dnsLookupDone)
-	ws.result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
-	ws.result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
+	if ws.timings.tlsHandshakeDone.IsZero() {
+		ws.result.TLSHandshake = 0
+		ws.result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tcpConnected)
+	} else {
+		ws.result.TLSHandshake = ws.timings.tlsHandshakeDone.Sub(ws.timings.tcpConnected)
+		ws.result.WSHandshake = ws.timings.wsHandshakeDone.Sub(ws.timings.tlsHandshakeDone)
+	}
 
 	// Note on MessageRTT calculations:
 	// Since there is no guarantee that the time of a read corresponds to the time of the write
@@ -150,7 +155,11 @@ func (ws *WSStat) calculateResult() {
 	// Calculate cumulative durations
 	ws.result.DNSLookupDone = ws.timings.dnsLookupDone.Sub(ws.timings.dialStart)
 	ws.result.TCPConnected = ws.timings.tcpConnected.Sub(ws.timings.dialStart)
-	ws.result.TLSHandshakeDone = ws.timings.tlsHandshakeDone.Sub(ws.timings.dialStart)
+	if ws.timings.tlsHandshakeDone.IsZero() {
+		ws.result.TLSHandshakeDone = 0
+	} else {
+		ws.result.TLSHandshakeDone = ws.timings.tlsHandshakeDone.Sub(ws.timings.dialStart)
+	}
 	ws.result.WSHandshakeDone = ws.timings.wsHandshakeDone.Sub(ws.timings.dialStart)
 	if len(ws.timings.messageReads) < 1 {
 		ws.result.FirstMessageResponse = 0
