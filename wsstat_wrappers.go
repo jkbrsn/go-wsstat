@@ -114,8 +114,9 @@ func MeasureLatencyJSONBurst(url *url.URL, v []interface{}, customHeaders http.H
 	return ws.result, responses, nil
 }
 
-// MeasureLatencyPing is a wrapper around a one-hit usage of the WSStat instance. It establishes a
-// WebSocket connection, sends a ping message, awaits the pong response, and closes the connection.
+// MeasureLatencyPing is a convenience wrapper around a one-hit usage of the WSStat instance. It
+// establishes a WebSocket connection, sends a ping message, awaits the pong response, and closes
+// the connection.
 // Note: sets all times in the Result object.
 func MeasureLatencyPing(url *url.URL, customHeaders http.Header) (*Result, error) {
 	ws := New()
@@ -125,10 +126,29 @@ func MeasureLatencyPing(url *url.URL, customHeaders http.Header) (*Result, error
 		logger.Debug().Err(err).Msg("Failed to establish WebSocket connection")
 		return nil, err
 	}
-	err := ws.PingPong()
-	if err != nil {
-		logger.Debug().Err(err).Msg("Failed to send ping")
+	ws.PingPong()
+	ws.Close()
+
+	return ws.result, nil
+}
+
+// MeasureLatencyPingBurst is a convenience wrapper around a one-hit usage of the WSStat instance.
+// It establishes a WebSocket connection, sends ping messages according to pingCount, awaits the
+// pong responses, and closes the connection.
+// Note: sets all times in the Result object.
+func MeasureLatencyPingBurst(url *url.URL, pingCount int, customHeaders http.Header) (*Result, error) {
+	ws := New()
+	defer ws.Close()
+
+	if err := ws.Dial(url, customHeaders); err != nil {
+		logger.Debug().Err(err).Msg("Failed to establish WebSocket connection")
 		return nil, err
+	}
+	for i := 0; i < pingCount; i++ {
+		ws.WriteMessage(websocket.PingMessage, nil)
+	}
+	for i := 0; i < pingCount; i++ {
+		ws.ReadPong()
 	}
 	ws.Close()
 
