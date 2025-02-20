@@ -6,7 +6,7 @@ test:
 	go test -v -parallel=8 ${PACKAGES}
 
 test-race:
-	go test -v -race ${PACKAGES}
+	go test -v -parallel=8 -race ${PACKAGES}
 
 vet:
 	go vet ${PACKAGES}

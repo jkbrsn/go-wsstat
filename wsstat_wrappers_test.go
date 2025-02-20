@@ -94,3 +94,15 @@ func TestMeasureLatencyPing(t *testing.T) {
 	assert.Greater(t, result.MessageRTT, time.Duration(0))
 	assert.Greater(t, result.FirstMessageResponse, time.Duration(0))
 }
+
+func TestMeasureLatencyPingBurst(t *testing.T) {
+	pingCount := 22
+	result, err := MeasureLatencyPingBurst(echoServerAddrWs, pingCount, http.Header{})
+
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Greater(t, result.TotalTime, time.Duration(0))
+	assert.Greater(t, result.MessageRTT, time.Duration(0))
+	assert.Greater(t, result.FirstMessageResponse, time.Duration(0))
+	assert.Equal(t, pingCount, result.MessageCount)
+}

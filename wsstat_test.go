@@ -95,7 +95,7 @@ func TestWriteReadClose(t *testing.T) {
 	// Call close before defer, since Close calls calculateResult
 	ws.Close()
 
-	validateSendResult(ws, getFunctionName(), t)
+	validateOneHitResult(ws, getFunctionName(), t)
 }
 
 func TestBufferedReadWrite(t *testing.T) {
@@ -182,7 +182,7 @@ func TestOneHitMessage(t *testing.T) {
 	// Call close before defer, since Close calls calculateResult
 	ws.Close()
 
-	validateSendResult(ws, getFunctionName(), t)
+	validateOneHitResult(ws, getFunctionName(), t)
 }
 
 func TestOneHitMessageJSON(t *testing.T) {
@@ -211,7 +211,32 @@ func TestOneHitMessageJSON(t *testing.T) {
 	// Call close before defer, since Close calls calculateResult
 	ws.Close()
 
-	validateSendResult(ws, getFunctionName(), t)
+	validateOneHitResult(ws, getFunctionName(), t)
+}
+
+func TestPingPong(t *testing.T) {
+	testStart := time.Now()
+	ws := New()
+	defer func() {
+		ws.Close()
+		validateCloseResult(ws, getFunctionName(), t)
+	}()
+
+	err := ws.Dial(echoServerAddrWs, http.Header{})
+	assert.NoError(t, err)
+	validateDialResult(testStart, ws, echoServerAddrWs, getFunctionName(), t)
+
+	ws.PingPong()
+
+	result := ws.ExtractResult()
+	assert.NotNil(t, result)
+	assert.Greater(t, result.MessageRTT, time.Duration(0), "Expected valid MessageRTT")
+	assert.Equal(t, 1, result.MessageCount, "Expected 1 MessageCount")
+
+	// Call close before defer, since Close calls calculateResult
+	ws.Close()
+
+	validateOneHitResult(ws, getFunctionName(), t)
 }
 
 func TestLoggerFunctionality(t *testing.T) {
@@ -308,13 +333,13 @@ func validateDialResult(testStart time.Time, ws *WSStat, url *url.URL, msg strin
 		"Invalid WSHandshakeDone time in %s", msg)
 }
 
-// Validation of WSStat results after ReadMessage or SendMessage have been called
-func validateSendResult(ws *WSStat, msg string, t *testing.T) {
+// validateOneHitResult validates Result after both write and read have been called
+func validateOneHitResult(ws *WSStat, msg string, t *testing.T) {
 	assert.Greater(t, ws.result.MessageRTT, time.Duration(0), "Invalid MessageRTT time in %s", msg)
 	assert.Greater(t, ws.result.FirstMessageResponse, time.Duration(0), "Invalid FirstMessageResponse time in %s", msg)
 }
 
-// Validation of WSStat results after CloseConn has been called
+// validateCloseResult validates Results after Close has been called
 func validateCloseResult(ws *WSStat, msg string, t *testing.T) {
 	assert.Greater(t, ws.result.TotalTime, time.Duration(0), "Invalid TotalTime time in %s", msg)
 }

@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -85,6 +84,7 @@ type WSStat struct {
 	result  *Result
 
 	readChan  chan *wsRead
+	pongChan  chan bool
 	writeChan chan *wsWrite
 
 	ctx       context.Context
@@ -264,6 +264,7 @@ func (ws *WSStat) Close() {
 
 		// Close the pump channels
 		close(ws.readChan)
+		close(ws.pongChan)
 		close(ws.writeChan)
 	})
 }
@@ -289,6 +290,15 @@ func (ws *WSStat) Dial(url *url.URL, customHeaders http.Header) error {
 	}
 	ws.timings.wsHandshakeDone = time.Now()
 	ws.conn = conn
+	ws.conn.SetPongHandler(func(appData string) error {
+		select {
+		case <-ws.ctx.Done():
+			return nil
+		default:
+			ws.pongChan <- true
+			return nil
+		}
+	})
 
 	// Start the read and write pumps
 	ws.wgPumps.Add(2)
@@ -368,25 +378,9 @@ func (ws *WSStat) OneHitMessageJSON(v interface{}) (interface{}, error) {
 // Note: this function assumes that the pong received is the response to the sent message,
 // make sure to only run this function sequentially to avoid unexpected behavior.
 // Sets result times: MessageReads, MessageWrites
-func (ws *WSStat) PingPong() error {
-	pongReceived := make(chan bool)
-	timeout := time.After(5 * time.Second)
-
-	ws.conn.SetPongHandler(func(appData string) error {
-		pongReceived <- true
-		return nil
-	})
-
+func (ws *WSStat) PingPong() {
 	ws.WriteMessage(websocket.PingMessage, nil)
-
-	select {
-	case <-pongReceived:
-		ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
-	case <-timeout:
-		return errors.New("pong response timeout")
-	}
-
-	return nil
+	ws.ReadPong()
 }
 
 // ReadMessage reads a message from the WebSocket connection and measures the round-trip time. If
@@ -423,6 +417,13 @@ func (ws *WSStat) ReadMessageJSON() (interface{}, error) {
 	}
 
 	return resp, nil
+}
+
+// ReadPong reads a pong message from the WebSocket connection and measures the round-trip time.
+// Sets time: MessageReads
+func (ws *WSStat) ReadPong() {
+	<-ws.pongChan
+	ws.timings.messageReads = append(ws.timings.messageReads, time.Now())
 }
 
 // WriteMessage sends a message through the WebSocket connection.
@@ -688,6 +689,7 @@ func New() *WSStat {
 		ctx:       ctx,
 		cancel:    cancel,
 		readChan:  make(chan *wsRead, chanBufferSize),
+		pongChan:  make(chan bool, chanBufferSize),
 		writeChan: make(chan *wsWrite, chanBufferSize),
 	}
 
