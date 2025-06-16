@@ -1,4 +1,4 @@
-module github.com/jakobilobi/go-wsstat
+module github.com/jkbrsn/go-wsstat
 
 go 1.23.2
 

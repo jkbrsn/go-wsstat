@@ -1,6 +1,6 @@
 # Contributing to go-wsstat
 
-First off, thank you for considering contributing to go-wsstat. Before creating bug reports or submitting code, please check [the GitHub issues](https://github.com/jakobilobi/go-wsstat/issues). When you are creating a bug report, please include as many details as possible.
+First off, thank you for considering contributing to go-wsstat. Before creating bug reports or submitting code, please check [the GitHub issues](https://github.com/jkbrsn/go-wsstat/issues). When you are creating a bug report, please include as many details as possible.
 
 ## Pull Requests
 
