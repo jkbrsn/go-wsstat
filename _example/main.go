@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/gorilla/websocket"
-	"github.com/jakobilobi/go-wsstat"
+	"github.com/jkbrsn/go-wsstat"
 )
 
 func main() {
