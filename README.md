@@ -1,3 +1,5 @@
+**ARCHIVED**: from the merge of https://github.com/jkbrsn/wsstat/pull/18 this library will live on in the [wsstat](https://github.com/jkbrsn/wsstat) repo, together with the CLI client.
+
 # go-wsstat [![Go Documentation](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)][godocs] [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)][license]
 
 [godocs]: http://godoc.org/github.com/jkbrsn/go-wsstat
